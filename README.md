@@ -11,11 +11,20 @@ The current version includes:
 - Strict TypeScript project references
 - ESLint, Prettier, Vitest, and reproducible build scripts
 - Client-side text analysis for invisible characters, unusual whitespace,
-  control/replacement characters, and mixed Latin/Cyrillic words
+  leading/trailing and repeated internal spaces, control/replacement
+  characters, and mixed Latin/Cyrillic words
 - API health endpoint at `http://localhost:3000/health`
 
 Analysis currently runs locally in the browser; the API is not required for the
 analyzer page yet.
+
+Whitespace findings distinguish ordinary leading or trailing spaces, repeated
+internal spaces, and unusual Unicode whitespace. Ordinary space findings are
+informational only, and the original input is never trimmed or modified. The
+results view includes a toggle for showing or hiding whitespace rows and uses
+visible markers such as `·` and `⟦U+XXXX⟧` to make invisible whitespace clear.
+Results are cleared as soon as the input changes, and analysis remains an
+explicit button action so users can finish editing before reviewing findings.
 
 ## Development
 

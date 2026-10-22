@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 
 import type { Finding } from './analyzer'
 import { analyzeText } from './analyzer'
@@ -8,14 +8,66 @@ const categoryLabels = {
   invisible: 'Invisible character',
   'mixed-script': 'Mixed-script word',
   replacement: 'Replacement character',
-  whitespace: 'Unusual whitespace',
+  whitespace: 'Whitespace',
 } as const
 
 const severityLabels = {
+  info: 'Information',
   high: 'High attention',
   low: 'Low attention',
   medium: 'Review',
 } as const
+
+function visibleWhitespace(value: string) {
+  return Array.from(value)
+    .map((character) => {
+      if (character === ' ') return '·'
+      if (character === '\t') return '⇥'
+      if (character === '\n') return '↵'
+      if (character === '\r') return '␍'
+      if (/\s/u.test(character)) {
+        const codePoint = character.codePointAt(0)
+        return codePoint === undefined
+          ? '□'
+          : `⟦U+${codePoint.toString(16).toUpperCase().padStart(4, '0')}⟧`
+      }
+      return character
+    })
+    .join('')
+}
+
+function findingValue(finding: Finding) {
+  return finding.category === 'whitespace'
+    ? visibleWhitespace(finding.value)
+    : JSON.stringify(finding.value)
+}
+
+function FindingExcerpt({ finding }: { finding: Finding }) {
+  const excerpt =
+    finding.category === 'whitespace'
+      ? visibleWhitespace(finding.excerpt)
+      : finding.excerpt
+
+  if (finding.category !== 'mixed-script') {
+    return <>{excerpt}</>
+  }
+
+  const matchStart = finding.excerpt.indexOf(finding.value)
+  if (matchStart < 0) {
+    return <>{excerpt}</>
+  }
+
+  const matchEnd = matchStart + finding.value.length
+  return (
+    <Fragment>
+      {finding.excerpt.slice(0, matchStart)}
+      <mark className="finding-highlight">
+        {finding.excerpt.slice(matchStart, matchEnd)}
+      </mark>
+      {finding.excerpt.slice(matchEnd)}
+    </Fragment>
+  )
+}
 
 export function App() {
   const [text, setText] = useState('')
@@ -28,27 +80,21 @@ export function App() {
   return (
     <main className="app-shell">
       <section className="hero" aria-labelledby="page-title">
-        <p className="eyebrow">Unicode clarity, one character at a time</p>
         <h1 id="page-title">Meet CharAIcter.</h1>
-        <p className="intro">
-          A focused workspace for understanding the subtle characters hiding in
-          plain text.
-        </p>
       </section>
 
       <section className="workspace" aria-labelledby="workspace-title">
-        <div className="section-heading">
-          <div>
-            <p className="section-kicker">Workspace</p>
-            <h2 id="workspace-title">Bring your text into focus.</h2>
-          </div>
-          <span className="status-pill">Local analysis</span>
-        </div>
+        <h2 className="visually-hidden" id="workspace-title">
+          Text analysis
+        </h2>
         <div className="input-area">
           <label htmlFor="text-input">Text to inspect</label>
           <textarea
             id="text-input"
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value)
+              setFindings(null)
+            }}
             placeholder="Paste or type text here..."
             rows={8}
             value={text}
@@ -72,22 +118,43 @@ export function App() {
 }
 
 function Results({ findings }: { findings: Finding[] }) {
+  const [showWhitespace, setShowWhitespace] = useState(true)
+  const visibleFindings = showWhitespace
+    ? findings
+    : findings.filter((finding) => finding.category !== 'whitespace')
+
   return (
     <section aria-labelledby="results-title" className="results">
       <div className="results-heading">
         <div>
-          <p className="section-kicker">Analysis results</p>
           <h3 id="results-title">
-            {findings.length === 0
-              ? 'Nothing unusual found.'
-              : `${findings.length} finding${findings.length === 1 ? '' : 's'} to review.`}
+            {visibleFindings.length === 0
+              ? findings.length === 0
+                ? 'Nothing unusual found.'
+                : 'Whitespace details are hidden.'
+              : `${visibleFindings.length} finding${visibleFindings.length === 1 ? '' : 's'} to review.`}
           </h3>
         </div>
-        <span className="result-count">{findings.length}</span>
+        <span className="result-count">{visibleFindings.length}</span>
       </div>
-      {findings.length > 0 && (
+      {findings.some((finding) => finding.category === 'whitespace') && (
+        <div className="results-controls">
+          <button
+            aria-pressed={showWhitespace}
+            className="toggle-button"
+            onClick={() => setShowWhitespace((isVisible) => !isVisible)}
+            type="button"
+          >
+            {showWhitespace ? 'Hide' : 'Show'} whitespace details
+          </button>
+          <span>
+            Includes visible markers for spaces and Unicode whitespace.
+          </span>
+        </div>
+      )}
+      {visibleFindings.length > 0 && (
         <ul className="finding-list">
-          {findings.map((finding, index) => (
+          {visibleFindings.map((finding, index) => (
             <li
               className="finding"
               key={`${finding.position}-${finding.category}-${index}`}
@@ -104,11 +171,21 @@ function Results({ findings }: { findings: Finding[] }) {
               <div className="finding-meta">
                 <code>{finding.codePoint ?? 'Word'}</code>
                 <span>Position {finding.position}</span>
-                <span className="finding-value">
-                  {JSON.stringify(finding.value)}
-                </span>
+                {finding.category === 'whitespace' ? (
+                  <span
+                    aria-label={`Visible whitespace representation: ${visibleWhitespace(finding.value)}`}
+                    className="finding-value whitespace-marker"
+                    title="Visible whitespace representation"
+                  >
+                    {findingValue(finding)}
+                  </span>
+                ) : (
+                  <span className="finding-value">{findingValue(finding)}</span>
+                )}
               </div>
-              <p className="finding-excerpt">{finding.excerpt}</p>
+              <p className="finding-excerpt">
+                <FindingExcerpt finding={finding} />
+              </p>
             </li>
           ))}
         </ul>

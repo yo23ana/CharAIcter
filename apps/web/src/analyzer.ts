@@ -1,7 +1,9 @@
 export type FindingCategory =
   'invisible' | 'whitespace' | 'mixed-script' | 'control' | 'replacement'
 
-export type FindingSeverity = 'high' | 'medium' | 'low'
+export type FindingSeverity = 'high' | 'medium' | 'low' | 'info'
+export type WhitespaceType =
+  'leading' | 'trailing' | 'repeated-internal' | 'unusual'
 
 export interface Finding {
   category: FindingCategory
@@ -11,6 +13,7 @@ export interface Finding {
   position: number
   severity: FindingSeverity
   value: string
+  whitespaceType?: WhitespaceType
 }
 
 const invisibleCharacters = new Map<number, string>([
@@ -111,8 +114,46 @@ function findMixedScriptWords(text: string): Finding[] {
   return findings
 }
 
-export function analyzeText(text: string): Finding[] {
+function findOrdinaryWhitespace(text: string): Finding[] {
   const findings: Finding[] = []
+
+  for (const match of text.matchAll(/ +/g)) {
+    const value = match[0]
+    const start = match.index ?? 0
+    const end = start + value.length
+    const isLeading = start === 0
+    const isTrailing = end === text.length
+    const whitespaceType: WhitespaceType = isLeading
+      ? 'leading'
+      : isTrailing
+        ? 'trailing'
+        : 'repeated-internal'
+
+    if (value.length === 1 && whitespaceType === 'repeated-internal') {
+      continue
+    }
+
+    findings.push({
+      category: 'whitespace',
+      description:
+        whitespaceType === 'leading'
+          ? `Leading whitespace: ${value.length} ordinary space${value.length === 1 ? '' : 's'} at the beginning of the text.`
+          : whitespaceType === 'trailing'
+            ? `Trailing whitespace: ${value.length} ordinary space${value.length === 1 ? '' : 's'} at the end of the text.`
+            : `Repeated internal whitespace: ${value.length} consecutive ordinary spaces between text.`,
+      excerpt: excerptAt(text, start, value.length),
+      position: Array.from(text.slice(0, start)).length + 1,
+      severity: 'info',
+      value,
+      whitespaceType,
+    })
+  }
+
+  return findings
+}
+
+export function analyzeText(text: string): Finding[] {
+  const findings: Finding[] = findOrdinaryWhitespace(text)
   let codePointPosition = 0
 
   for (let offset = 0; offset < text.length;) {
@@ -143,6 +184,7 @@ export function analyzeText(text: string): Finding[] {
         position,
         severity: 'low',
         value,
+        whitespaceType: 'unusual',
       })
     } else if (codePoint === 0xfffd) {
       findings.push({
