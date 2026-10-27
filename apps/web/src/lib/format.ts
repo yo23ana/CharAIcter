@@ -1,4 +1,8 @@
-import type { Finding } from '@charaicter/shared/analyzer'
+import type {
+  Finding,
+  FindingCategory,
+  FindingSeverity,
+} from '@charaicter/shared/analyzer'
 
 export const categoryLabels = {
   control: 'Control character',
@@ -12,14 +16,14 @@ export const categoryLabels = {
   replacement: 'Replacement character',
   symbol: 'Symbol',
   whitespace: 'Whitespace',
-} as const
+} as const satisfies Record<FindingCategory, string>
 
 export const severityLabels = {
   info: 'Information',
   high: 'High attention',
   low: 'Low attention',
   medium: 'Review',
-} as const
+} as const satisfies Record<FindingSeverity, string>
 
 export function visibleWhitespace(value: string) {
   return Array.from(value)

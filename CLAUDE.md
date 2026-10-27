@@ -48,10 +48,8 @@ A change is done when `npm run check` and `npm test` pass; also run
   never with `innerHTML`.
 - Write special characters in source as `\u` escapes (`'\u200B'`), never as
   literal invisible or look-alike characters. Check new test strings for this.
-- Adding a finding category touches: `types.ts` (`FindingCategory`), a check in
-  `checks/`, `analyzer.ts`, `categoryLabels` in `apps/web/src/lib/format.ts`,
-  tests in `packages/shared/src/analyzer.test.ts`, and the category table in
-  the technical overview.
+- For analyzer checks, character tables, and finding categories, follow the
+  `unicode-analysis` skill; a new category touches six places.
 - Language detection changes must keep the benchmark at 25/25 and the API
   tests passing; add corpus entries and API tests for new cases.
 - Web performance: selection handlers are created once in `App.tsx`; pass
