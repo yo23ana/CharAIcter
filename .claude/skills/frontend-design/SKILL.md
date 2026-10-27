@@ -15,25 +15,35 @@ new patterns.
 
 ## Project context
 
-CharAIcter is a privacy-first React/Vite text-analysis application:
+CharAIcter is a privacy-conscious React/Vite text-analysis application:
 
 - The web app lives in `apps/web/src/`.
-- `App.tsx` owns the current input, analysis action, and results presentation.
-- `analyzer.ts` is pure, deterministic Unicode analysis logic and defines
-  structured findings.
-- `styles.css` is the shared styling layer; avoid adding dependencies for
-  visual work.
-- Analysis is local and stateless. Do not transmit, persist, trim, or rewrite
-  user text as part of a frontend improvement.
+- `App.tsx` owns layout and state: the text, the analysis result, and the
+  hovered and pinned highlights.
+- `components/` holds the UI: `TextEditor` (textarea with a highlight
+  overlay), `Results` (summary, severity filters, tabs), `FindingCard`,
+  `SymbolsTab`, `AllDetectionsTab`, and `EmptyResults`.
+- `lib/` holds pure helpers: `format.ts` (labels, visible whitespace markers,
+  position text), `selection.ts` (highlights and hover/click behavior), and
+  `findingGroups.ts` (splitting findings by tab and grouping).
+- `styles.css` is the only stylesheet; avoid adding dependencies for visual
+  work.
+- The UI does not analyze text. It sends the text to the project's API and
+  renders the structured findings it returns. Do not send text anywhere else,
+  persist it, trim it, or rewrite it as part of a frontend improvement.
 
-The current identity is a warm, light autumn palette with:
+The layout is two columns on wide screens: the editor on the left is sticky so
+highlights stay visible, and the results on the right scroll. Below 960 px the
+editor stacks above the results.
+
+The visual identity is a warm, light autumn palette with:
 
 - parchment and cream surfaces;
-- muted sage green for primary actions and focus;
-- terracotta and amber for emphasis and attention;
+- muted sage green for primary actions, selected tabs, and focus;
+- terracotta and amber for emphasis, highlights, and attention;
 - dark olive text with soft borders and restrained shadows;
-- compact cards, rounded controls, readable monospace excerpts, and a
-  deliberately uncluttered working area.
+- compact cards, rounded controls and pills, readable monospace excerpts, and
+  a deliberately uncluttered working area.
 
 Treat this as a foundation, not a restriction. Refine the identity coherently
 when the task calls for it; do not replace it with generic dashboard panels,
@@ -54,7 +64,7 @@ Use this skill for:
 
 Do not use it to change analyzer semantics, API contracts, or privacy behavior
 unless the frontend request genuinely requires that change. Route those parts
-through the existing feature-building workflow.
+through the `feature-builder` workflow.
 
 ## Design principles
 
@@ -80,29 +90,36 @@ consistent visual structure:
 - severity or attention level;
 - category;
 - concise explanation;
-- position and code point when available;
+- position ("Line 3, position 5") and code point when available;
 - the relevant value or word;
 - a safe excerpt that shows why it was reported.
 
-Visually distinguish informational whitespace from security-relevant findings.
-Use restrained emphasis for ordinary spaces and stronger emphasis for unusual
-or potentially deceptive characters. Never hide the exact evidence behind
-ambiguous copy.
+Visually distinguish informational whitespace and symbols from
+security-relevant findings. Use restrained emphasis for ordinary spaces and
+stronger emphasis for unusual or potentially deceptive characters. Never hide
+the exact evidence behind ambiguous copy. Repeated items (such as every comma)
+belong in one grouped row with a count, not many identical rows.
 
 When highlighting text:
 
 - render user input as text nodes or React children, never `innerHTML`;
-- highlight the exact matched span, not an approximate replacement;
+- highlight the exact matched span by its recorded offset
+  (`excerptStart`, `startOffset`), not by searching for the value;
 - preserve surrounding context and Unicode characters;
 - provide a readable non-color cue through labels, structure, or text;
 - ensure contrast remains sufficient in light and focused states.
 
+The editor overlay must mirror the textarea exactly (same font, line height,
+padding, and wrapping). Marks in the overlay must never change layout: draw
+extra visuals, such as the bar for an empty line, with absolutely positioned
+pseudo-elements.
+
 ### 3. Use a small, coherent visual system
 
 Reuse the existing palette, border radii, spacing rhythm, button shape, card
-surfaces, focus ring, and monospace evidence treatment. Add a new color or
-visual primitive only when it communicates a meaningful state that the current
-system cannot express.
+surfaces, tabs, chips, pills, focus ring, and monospace evidence treatment. Add
+a new color or visual primitive only when it communicates a meaningful state
+that the current system cannot express.
 
 Avoid:
 
@@ -120,12 +137,14 @@ small widths. Check:
 
 - headings wrap without collision;
 - controls can be reached and understood without horizontal scrolling;
-- finding metadata wraps naturally;
+- finding metadata and table cells wrap naturally; tables scroll inside their
+  own container, never the page;
 - long words, excerpts, and Unicode values do not overflow;
+- the editor and its **Analyze text** button fit within the viewport height;
 - spacing tightens without making controls or text cramped.
 
-Use the existing breakpoint conventions unless the component has a clear need
-for a new one.
+Use the existing breakpoints (960 px for stacking, 600 px for phones) unless
+the component has a clear need for a new one.
 
 ### 5. Design accessible interaction states
 
@@ -137,43 +156,55 @@ Every interactive element needs:
 - disabled behavior only when it communicates a real constraint;
 - stable layout when state text changes.
 
-Use semantic HTML first. Use `aria-pressed` for toggles and visible status text
-for important state changes. Respect `prefers-reduced-motion`; transitions
-should support orientation, not become the feature.
+Use semantic HTML first. Use `aria-pressed` for toggles, `role="tablist"` with
+arrow-key navigation for tabs, and visible status text for important state
+changes. Respect `prefers-reduced-motion`; transitions should support
+orientation, not become the feature.
 
-### 6. Preserve user trust
+### 6. Keep interaction fast
 
-The interface must make local, non-destructive analysis clear. Never silently
-trim or modify the input. Clear stale results when the input changes if they
-could be mistaken for current results. Do not log or persist submitted text.
-Keep errors explicit and actionable rather than replacing them with an empty
-or success-shaped state.
+Hovering a finding updates only the editor highlight. Keep it that way:
+selection handlers are created once in `App.tsx`, `Results` and `FindingCard`
+are memoized, and cards receive `isSelected` and `handlers` rather than the
+whole selection. Cache derived lists with `useMemo`, and cap very long tables
+(the All tab renders at most 1,000 rows).
+
+### 7. Preserve user trust
+
+Never silently trim or modify the input. Clear stale results when the input
+changes if they could be mistaken for current results. Do not log or persist
+submitted text. Keep errors explicit and actionable rather than replacing them
+with an empty or success-shaped state.
 
 ## Workflow
 
-1. Read the relevant component, styles, analyzer types, tests, and README
+1. Read the relevant component, styles, finding types, tests, and README
    before editing.
 2. Describe the smallest complete UI slice: user action, state change, visible
    result, accessibility behavior, and focused verification.
 3. Identify the existing visual primitives to reuse and the one or two design
    problems being solved.
-4. Implement the behavior and presentation together. Keep components small
-   unless extraction clearly improves reuse or testability.
+4. Implement the behavior and presentation together. Put UI in `components/`
+   and pure logic in `lib/`, where it can be unit tested.
 5. Test representative states:
-   - empty input;
+   - empty input and the placeholder before analysis;
    - ordinary text;
-   - long text and narrow viewport;
+   - long text, many findings (thousands), and narrow viewports;
    - findings with long values or excerpts;
-   - mixed-script words and invisible/unusual whitespace;
-   - keyboard focus and toggled/disabled controls.
-6. Run the narrowest relevant checks, then use the repository baseline for
-   cross-layer UI changes:
+   - mixed-script words, invisible/unusual whitespace, and empty lines;
+   - keyboard focus, tabs, and toggled/disabled controls;
+   - widths of about 1440, 960, and 400 px, and browser zoom of 150%.
+6. Run the narrowest relevant checks, then the repository baseline for
+   cross-layer UI changes (use `npm` instead of `npm.cmd` in Git Bash):
    - `npm.cmd test`
    - `npm.cmd run check`
    - `npm.cmd run build`
 7. Inspect the diff for unrelated styling, generated files, accessibility
    regressions, and unsupported claims. Update README or the technical
    overview only when user-facing behavior or architecture changed.
+
+Do not launch servers or browsers to check the result unless the user asked
+for it or approved it.
 
 ## Completion checklist
 
@@ -183,5 +214,6 @@ or success-shaped state.
 - Text evidence is rendered safely and remains understandable without color.
 - Responsive, keyboard, focus, disabled, empty, and long-content states are
   intentional.
+- Hovering stays fast with many findings.
 - Tests, type checks, lint, formatting, and build pass as appropriate.
 - Any deferred visual polish or known limitation is reported explicitly.
