@@ -1,4 +1,4 @@
-import { withLocation } from '../location.js'
+import type { Locate } from '../location.js'
 import type { Finding } from '../types.js'
 
 function scriptOf(character: string) {
@@ -8,7 +8,7 @@ function scriptOf(character: string) {
   return null
 }
 
-export function findMixedScriptWords(text: string): Finding[] {
+export function findMixedScriptWords(text: string, locate: Locate): Finding[] {
   const findings: Finding[] = []
   const wordPattern = /[\p{L}\p{M}\p{N}_]+/gu
 
@@ -25,8 +25,7 @@ export function findMixedScriptWords(text: string): Finding[] {
 
     if (scripts.length > 1) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'mixed-script',
             description: `This word mixes ${scripts.join(' and ')} letters that can look alike.`,

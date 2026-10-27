@@ -1,7 +1,10 @@
-import { withLocation } from '../location.js'
+import type { Locate } from '../location.js'
 import type { Finding, WhitespaceType } from '../types.js'
 
-export function findOrdinaryWhitespace(text: string): Finding[] {
+export function findOrdinaryWhitespace(
+  text: string,
+  locate: Locate,
+): Finding[] {
   const findings: Finding[] = []
   const punctuationAhead = /\s*([,.;:!?])/uy
 
@@ -35,8 +38,7 @@ export function findOrdinaryWhitespace(text: string): Finding[] {
     }
 
     findings.push(
-      withLocation(
-        text,
+      locate(
         {
           category: 'whitespace',
           description:

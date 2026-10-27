@@ -28,8 +28,9 @@ skill.
   Symbols run only with `{ symbols: true }`.
 - `characters.ts`: the character tables (`invisibleCharacters`,
   `unusualWhitespace`, `unusualDashes`, `lineSeparators`) and classifiers.
-- `location.ts`: `withLocation(text, partialFinding, startOffset, endOffset)`
-  fills in lines, positions, and the whole-word excerpt. Every finding must be
+- `location.ts`: `createLocator(text)` indexes the text once per
+  `analyzeText` call and returns `locate(partialFinding, startOffset, endOffset)`,
+  which fills in lines, positions, and the whole-word excerpt. Every finding must be
   created through it.
 - `types.ts`: `FindingCategory`, `Finding`, and the other types.
 
@@ -67,7 +68,8 @@ characters.
 
 ## 3. Write the finding
 
-- **Positions:** pass UTF-16 offsets to `withLocation`. Iterate with
+- **Positions:** pass UTF-16 offsets to `locate`, which every check receives
+  as its second argument. Iterate with
   `codePointAt` and advance by the character's length, so emoji and other
   astral characters are never split.
 - **Runs:** report consecutive related characters as one finding (as lookalike

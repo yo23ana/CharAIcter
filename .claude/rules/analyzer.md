@@ -10,7 +10,9 @@ paths:
   findings in the same order.
 - Iterate text by code point (`codePointAt`, then advance by the character's
   length) so emoji and other astral characters are never split.
-- Create every finding through `withLocation` in `location.ts`. Positions mean:
+- Create every finding with the `locate` function that `analyzeText` gets from
+  `createLocator(text)` in `location.ts` and passes to each check. Positions
+  mean:
   - `startOffset`/`endOffset`: UTF-16 offsets, used to highlight the textarea;
   - `line`, `linePosition`, `lineEndPosition`: 1-based and counted in code
     points, shown to users as "Line 3, position 5".

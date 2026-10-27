@@ -434,4 +434,13 @@ describe('analyzeText', () => {
       },
     ])
   })
+
+  it('gives the same findings no matter what was analyzed before', () => {
+    const text = 'first line\nsecond\u200Bline'
+    const alone = analyzeText(text, { symbols: true })
+
+    analyzeText('other\n\n\ntext \u00A0', { symbols: true })
+
+    expect(analyzeText(text, { symbols: true })).toEqual(alone)
+  })
 })

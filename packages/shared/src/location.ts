@@ -27,14 +27,9 @@ interface TextIndex {
   // UTF-16 offsets of every astral (surrogate pair) character.
   astralOffsets: number[]
   lineStarts: number[]
-  text: string
 }
 
-let cachedIndex: TextIndex | null = null
-
 function indexText(text: string): TextIndex {
-  if (cachedIndex?.text === text) return cachedIndex
-
   const lineStarts = [0]
   for (const match of text.matchAll(/\r\n|\r|\n/g)) {
     lineStarts.push((match.index ?? 0) + match[0].length)
@@ -44,8 +39,7 @@ function indexText(text: string): TextIndex {
     if (/[\uD800-\uDBFF]/.test(text[offset])) astralOffsets.push(offset++)
   }
 
-  cachedIndex = { astralOffsets, lineStarts, text }
-  return cachedIndex
+  return { astralOffsets, lineStarts }
 }
 
 // Number of entries in a sorted array that are less than or equal to value.
@@ -60,8 +54,11 @@ function countAtMost(sorted: number[], value: number) {
   return low
 }
 
-function sourceLocation(text: string, startOffset: number, endOffset: number) {
-  const { astralOffsets, lineStarts } = indexText(text)
+function sourceLocation(
+  { astralOffsets, lineStarts }: TextIndex,
+  startOffset: number,
+  endOffset: number,
+) {
   const codePointsBefore = (offset: number) =>
     offset - countAtMost(astralOffsets, offset - 1)
   const line = countAtMost(lineStarts, startOffset)
@@ -80,27 +77,38 @@ function sourceLocation(text: string, startOffset: number, endOffset: number) {
   }
 }
 
-export function withLocation(
-  text: string,
-  finding: Omit<
-    Finding,
-    | 'endLine'
-    | 'endOffset'
-    | 'excerpt'
-    | 'excerptStart'
-    | 'line'
-    | 'lineEndPosition'
-    | 'linePosition'
-    | 'startOffset'
-  >,
+/** A finding without the location fields that a locator fills in. */
+export type UnlocatedFinding = Omit<
+  Finding,
+  | 'endLine'
+  | 'endOffset'
+  | 'excerpt'
+  | 'excerptStart'
+  | 'line'
+  | 'lineEndPosition'
+  | 'linePosition'
+  | 'startOffset'
+>
+
+/** Adds lines, positions, and the excerpt to a finding at the given range. */
+export type Locate = (
+  finding: UnlocatedFinding,
   startOffset: number,
   endOffset: number,
-): Finding {
-  return {
+) => Finding
+
+/**
+ * Indexes the text's lines and astral characters once and returns a function
+ * that locates findings in it. `analyzeText` creates one per call, so no state
+ * is kept between calls.
+ */
+export function createLocator(text: string): Locate {
+  const index = indexText(text)
+  return (finding, startOffset, endOffset) => ({
     ...finding,
-    ...sourceLocation(text, startOffset, endOffset),
+    ...sourceLocation(index, startOffset, endOffset),
     ...excerptAround(text, startOffset, endOffset),
     endOffset,
     startOffset,
-  }
+  })
 }

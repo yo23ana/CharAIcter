@@ -1,7 +1,7 @@
-import { withLocation } from '../location.js'
+import type { Locate } from '../location.js'
 import type { Finding } from '../types.js'
 
-export function findEmptyLines(text: string): Finding[] {
+export function findEmptyLines(text: string, locate: Locate): Finding[] {
   const lines: { breakEnd: number; contentEnd: number; start: number }[] = []
   for (let start = 0; ;) {
     const lineBreak = /\r\n|\r|\n/g
@@ -54,8 +54,7 @@ export function findEmptyLines(text: string): Finding[] {
           : ` ${withWhitespace} of them ${withWhitespace === 1 ? 'contains' : 'contain'} only whitespace.`
 
     findings.push(
-      withLocation(
-        text,
+      locate(
         {
           category: 'line',
           description: `${label}${where}.${whitespaceNote}`,

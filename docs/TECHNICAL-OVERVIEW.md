@@ -89,17 +89,17 @@ with languages listed in reading order.
 `analyzeText(text, options?)` in `analyzer.ts` runs every check and returns the
 findings sorted by position. The code is split by responsibility:
 
-| File                          | Contents                                                                   |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `analyzer.ts`                 | `analyzeText` and the public types                                         |
-| `types.ts`                    | `Finding` and the other finding types                                      |
-| `characters.ts`               | Character tables (invisible, unusual spaces, dashes) and classifiers       |
-| `location.ts`                 | Line/position indexing and whole-word excerpts (`withLocation`)            |
-| `checks/specialCharacters.ts` | One pass over code points: invisible, hidden text, lookalikes, and similar |
-| `checks/whitespace.ts`        | Leading, trailing, repeated, and before-punctuation spaces                 |
-| `checks/lines.ts`             | Empty and whitespace-only lines                                            |
-| `checks/mixedScripts.ts`      | Words mixing Latin, Cyrillic, and Greek                                    |
-| `checks/symbols.ts`           | Every non-letter, non-digit character, with kind and name                  |
+| File                          | Contents                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `analyzer.ts`                 | `analyzeText` and the public types                                             |
+| `types.ts`                    | `Finding` and the other finding types                                          |
+| `characters.ts`               | Character tables (invisible, unusual spaces, dashes) and classifiers           |
+| `location.ts`                 | Line/position indexing and whole-word excerpts (`createLocator`, one per call) |
+| `checks/specialCharacters.ts` | One pass over code points: invisible, hidden text, lookalikes, and similar     |
+| `checks/whitespace.ts`        | Leading, trailing, repeated, and before-punctuation spaces                     |
+| `checks/lines.ts`             | Empty and whitespace-only lines                                                |
+| `checks/mixedScripts.ts`      | Words mixing Latin, Cyrillic, and Greek                                        |
+| `checks/symbols.ts`           | Every non-letter, non-digit character, with kind and name                      |
 
 The categories are:
 

@@ -10,13 +10,13 @@ import {
   unusualDashes,
   unusualWhitespace,
 } from '../characters.js'
-import { withLocation } from '../location.js'
+import type { Locate } from '../location.js'
 import type { Finding } from '../types.js'
 
 // One pass over the text's code points for every check that looks at single
 // characters: hidden tag text, styled lookalikes, invisible characters,
 // unusual spaces, dashes, line separators, and other special characters.
-export function findSpecialCharacters(text: string): Finding[] {
+export function findSpecialCharacters(text: string, locate: Locate): Finding[] {
   const findings: Finding[] = []
   for (let offset = 0; offset < text.length;) {
     const codePoint = text.codePointAt(offset)
@@ -46,8 +46,7 @@ export function findSpecialCharacters(text: string): Finding[] {
         text.codePointAt(offset - 2) === 0x1f3f4 && lastTag === 0xe007f
       if (!isFlag) {
         findings.push(
-          withLocation(
-            text,
+          locate(
             {
               category: 'hidden-text',
               codePoint: label,
@@ -80,8 +79,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       }
 
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'lookalike',
             codePoint: label,
@@ -99,8 +97,7 @@ export function findSpecialCharacters(text: string): Finding[] {
 
     if (invisibleCharacters.has(codePoint)) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'invisible',
             codePoint: label,
@@ -114,8 +111,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       )
     } else if (unusualWhitespace.has(codePoint)) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'whitespace',
             codePoint: label,
@@ -133,8 +129,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       if (dash === undefined) continue
 
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'dash',
             codePoint: label,
@@ -148,8 +143,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       )
     } else if (codePoint === 0xfffd) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'replacement',
             codePoint: label,
@@ -164,8 +158,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       )
     } else if (lineSeparators.has(codePoint)) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'line',
             codePoint: label,
@@ -180,8 +173,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       )
     } else if (isPrivateUse(codePoint)) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'private-use',
             codePoint: label,
@@ -196,8 +188,7 @@ export function findSpecialCharacters(text: string): Finding[] {
       )
     } else if (isControl(codePoint)) {
       findings.push(
-        withLocation(
-          text,
+        locate(
           {
             category: 'control',
             codePoint: label,

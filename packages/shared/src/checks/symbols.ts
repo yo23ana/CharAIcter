@@ -1,5 +1,5 @@
 import { codePointLabel, unusualDashes } from '../characters.js'
-import { withLocation } from '../location.js'
+import type { Locate } from '../location.js'
 import type { Finding, SymbolKind } from '../types.js'
 
 const symbolNames: Record<string, string> = {
@@ -100,7 +100,7 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 // Every visible character that is not a letter or an ordinary digit:
 // punctuation, brackets, quotes, dashes, currency, math, emoji, and so on.
 // Spaces, control, and invisible characters are left to the other checks.
-export function findSymbols(text: string): Finding[] {
+export function findSymbols(text: string, locate: Locate): Finding[] {
   const findings: Finding[] = []
   let previousEnd = 0
   for (const match of text.matchAll(/[^\p{L}\p{M}\p{Nd}\p{Z}\p{C}]/gu)) {
@@ -117,8 +117,7 @@ export function findSymbols(text: string): Finding[] {
     const name = symbolNames[segment] ?? symbolKindLabels[symbolKind]
 
     findings.push(
-      withLocation(
-        text,
+      locate(
         {
           category: 'symbol',
           codePoint: codePointLabel(codePoint),
