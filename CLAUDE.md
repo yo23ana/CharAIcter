@@ -35,31 +35,18 @@ A change is done when `npm run check` and `npm test` pass; also run
 
 ## Rules
 
+- Area rules in `.claude/rules/` load automatically when you work on matching
+  files: `analyzer.md` (packages/shared), `web.md` (apps/web), `api.md`
+  (apps/api), and `testing.md` (test files).
 - Import the shared package by name (`@charaicter/shared/analyzer`), never by a
   relative path into `packages/`. The web app and API use its built `dist`, so
   run `npm run build:shared` after changing it (`npm test` and `npm run dev`
   already do).
-- Keep the analyzer pure and deterministic: no DOM, network, logging, or
-  hidden state. Iterate text by code point.
-- Positions: `startOffset`/`endOffset` are UTF-16 offsets (for highlighting the
-  textarea); `line`/`linePosition`/`lineEndPosition` count code points (shown
-  to users as "Line 3, position 5"). Keep both correct with emoji.
 - Never trim, rewrite, log, or store the user's text. Render it as React text,
   never with `innerHTML`.
 - Write special characters in source as `\u` escapes (`'\u200B'`), never as
   literal invisible or look-alike characters. `npm run check:chars` (part of
   `npm run check`) and a Claude Code hook on every edit flag literal ones.
-- For analyzer checks, character tables, and finding categories, follow the
-  `unicode-analysis` skill; a new category touches six places.
-- Language detection changes must keep the benchmark at 25/25 and the API
-  tests passing; add corpus entries and API tests for new cases.
-- Web performance: selection handlers are created once in `App.tsx`; pass
-  `isSelected` and `handlers` to memoized cards rather than the whole
-  selection, so hovering does not re-render the results.
-- Keep the existing visual language (warm parchment, sage, amber) in
-  `styles.css`; don't add UI libraries.
-- Tests sit next to the code they test. Shared-package tests import the source
-  (`./analyzer.js`).
 - Ask before launching servers or browsers. If the user's dev server is
   already running, it reloads changes on its own.
 - Commit only when asked. Use the existing message style (`feat:`, `fix:`,
