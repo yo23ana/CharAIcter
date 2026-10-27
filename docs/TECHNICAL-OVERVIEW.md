@@ -15,8 +15,11 @@ The repository is an npm workspace with three parts:
 | `apps/api`        | Fastify API: language detection plus the shared analyzer           |
 | `apps/web`        | React/Vite UI: text editor, findings, inspectors, and highlighting |
 
-Tests are colocated Vitest files. `npm run dev` builds the shared package and
-starts the web app (port 5173) and the API (port 3000) together.
+`packages/shared` is linked into `node_modules` as `@charaicter/shared` by npm
+workspaces, so the API and the web app import it by package name (resolved to
+its built `dist`). Tests are Vitest files next to the code they test. `npm run
+dev` builds the shared package and starts the web app (port 5173) and the API
+(port 3000) together.
 
 ## System architecture
 
@@ -66,9 +69,6 @@ Response (`AnalysisResult` in `packages/shared/src/analysis.ts`):
       "endLine": 1,
       "linePosition": 8,
       "lineEndPosition": 8,
-      "position": 8,
-      "column": 8,
-      "endColumn": 9,
       "excerpt": "Здравей, как си днес",
       "excerptStart": 7,
       "symbolKind": "punctuation",
@@ -84,10 +84,24 @@ with languages listed in reading order.
 
 ## Process per module
 
-### Shared analyzer (`packages/shared/src/analyzer.ts`)
+### Shared analyzer (`packages/shared/src`)
 
-`analyzeText(text, options?)` returns findings sorted by position. Each
-category is produced by a focused pass:
+`analyzeText(text, options?)` in `analyzer.ts` runs every check and returns the
+findings sorted by position. The code is split by responsibility:
+
+| File                          | Contents                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `analyzer.ts`                 | `analyzeText` and the public types                                         |
+| `types.ts`                    | `Finding` and the other finding types                                      |
+| `characters.ts`               | Character tables (invisible, unusual spaces, dashes) and classifiers       |
+| `location.ts`                 | Line/position indexing and whole-word excerpts (`withLocation`)            |
+| `checks/specialCharacters.ts` | One pass over code points: invisible, hidden text, lookalikes, and similar |
+| `checks/whitespace.ts`        | Leading, trailing, repeated, and before-punctuation spaces                 |
+| `checks/lines.ts`             | Empty and whitespace-only lines                                            |
+| `checks/mixedScripts.ts`      | Words mixing Latin, Cyrillic, and Greek                                    |
+| `checks/symbols.ts`           | Every non-letter, non-digit character, with kind and name                  |
+
+The categories are:
 
 | Category       | What is reported                                                                                                                                                                                           |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,8 +123,6 @@ Location data on every finding:
 - `line`/`endLine` and `linePosition`/`lineEndPosition`: 1-based line numbers
   and inclusive character positions within the line, counted in code points so
   an emoji counts once. The UI shows these as "Line 3, position 5".
-- `position`: 1-based code-point position in the whole text.
-- `column`/`endColumn`: UTF-16 columns, kept for compatibility.
 - `excerpt`/`excerptStart`: surrounding context widened to whole words, and the
   exact index of the finding inside it. Highlighting uses this index rather
   than searching, so repeated characters (such as the second `-` in `A--`) are
@@ -129,9 +141,12 @@ lacks letters found in the text.
 
 ### API (`apps/api`)
 
-`server.ts` sets up Fastify with permissive development CORS, `GET /health`,
-and the schema-validated `POST /analyze`. `analyze.ts` holds language
-detection and calls `analyzeText(text, { symbols: true })`.
+`server.ts` sets up Fastify with `GET /health` and the schema-validated
+`POST /analyze`. Request logging is off during tests. CORS follows
+`CORS_ORIGIN` (a comma-separated list); without it, development allows any
+origin and production allows none. `analyze.ts` holds language detection and
+calls `analyzeText(text, { symbols: true })`. The benchmark text lives in
+`src/fixtures` and, like the tests, is excluded from the build output.
 
 Language detection (`detectLanguage`):
 
@@ -159,8 +174,26 @@ Language names come from `Intl.DisplayNames`, so any fastText language gets a
 readable name. ISO 639-1 codes are mapped to ISO 639-3 for common languages.
 `franc` is used only as the baseline in the benchmark.
 
-### Web UI (`apps/web/src/App.tsx`)
+### Web UI (`apps/web/src`)
 
+| Path                              | Contents                                                    |
+| --------------------------------- | ----------------------------------------------------------- |
+| `App.tsx`                         | Page layout and state (text, analysis, hover and selection) |
+| `api.ts`                          | Typed client for `POST /analyze`                            |
+| `components/TextEditor.tsx`       | Textarea with the highlight overlay                         |
+| `components/Results.tsx`          | Summary, severity filters, and tabs                         |
+| `components/FindingCard.tsx`      | Finding cards and lists                                     |
+| `components/SymbolsTab.tsx`       | Symbols grouped by character                                |
+| `components/AllDetectionsTab.tsx` | Table of every detection, grouped                           |
+| `components/EmptyResults.tsx`     | Placeholder before the first analysis                       |
+| `lib/format.ts`                   | Labels, visible whitespace markers, and position text       |
+| `lib/selection.ts`                | Highlights and the hover/click (select) behavior            |
+| `lib/findingGroups.ts`            | Splitting findings by tab, de-duplicating, and grouping     |
+
+- **Rendering:** the hover and select handlers are created once, and
+  `Results` and each finding card are memoized, so hovering redraws only the
+  editor highlight and selecting redraws only the cards that changed. With
+  3,000 findings a hover takes about 50 ms instead of about 500 ms.
 - **Layout:** two columns on screens wider than 960 px. The editor is on the
   left and is sticky, so it stays in view while the results on the right
   scroll. Narrower screens stack the editor above the results.
@@ -190,20 +223,28 @@ readable name. ISO 639-1 codes are mapped to ISO 639-3 for common languages.
 
 `npm run test:agent` takes a read-only inventory of the repository (source and
 test files, exports, scripts, frameworks). It generates deterministic analyzer
-edge-case tests if `apps/web/src/analyzer.generated.test.ts` is missing, runs
+edge-case tests if `packages/shared/src/analyzer.generated.test.ts` is missing, runs
 Vitest, and prints a report. It never changes application code, installs
 packages, or edits tests to hide failures.
 
 ## Testing
 
-| Command                      | What it covers                                                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`                   | Analyzer behavior and positions, dash and symbol classification, the API client (with mocked `fetch`), and API routes, validation, and language detection cases |
-| `npm run check`              | Typecheck, ESLint, and Prettier                                                                                                                                 |
-| `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                  |
+| Command                      | What it covers                                                                                                                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                   | Analyzer behavior and positions (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
+| `npm run check`              | Typecheck, ESLint, and Prettier                                                                                                                                                                                  |
+| `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                          |
 
-API tests also pin known-hard language cases: Italian, Portuguese, Dutch, and
-Polish, and short Bulgarian, Russian, and Ukrainian phrases.
+`npm run typecheck` runs `tsc --build` over the shared package, the API, and the
+web app, then `tsconfig.tests.json` over test files and scripts, which the
+build configs exclude. API tests also pin known-hard language cases: Italian,
+Portuguese, Dutch, and Polish, and short Bulgarian, Russian, and Ukrainian
+phrases.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, check, tests, and
+build on every push to `main`/`master` and on pull requests, using the Node
+version in `.nvmrc`. `.gitattributes` keeps LF line endings on every platform,
+which the Prettier check expects.
 
 ## Challenges, solutions, and design trade-offs
 
