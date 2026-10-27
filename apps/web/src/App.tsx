@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 
 import type { AnalysisResult } from '@charAIcter/shared/analysis'
 import type { Finding } from '@charAIcter/shared/analyzer'
 
 import { analyzeTextWithApi } from './api'
+import { groupDetections, uniqueDetections } from './allDetections'
 import { dashFindings, nonDashFindings } from './dashInspector'
 
 const categoryLabels = {
@@ -97,36 +98,93 @@ function FindingExcerpt({ finding }: { finding: Finding }) {
   )
 }
 
-interface FindingSelection {
-  onHover: (finding: Finding | null) => void
-  onSelect: (finding: Finding) => void
-  selected: Finding | null
+/** Findings highlighted together: one finding, or a group such as every comma. */
+interface Highlight {
+  findings: Finding[]
+  key: string
 }
 
-// Hover previews a finding; click pins it so the highlight stays while the
-// user scrolls. Clicking a pinned finding again unpins it.
-function selectableFindingProps(
-  finding: Finding,
-  { onHover, onSelect, selected }: FindingSelection,
+function highlightOf(finding: Finding): Highlight {
+  return {
+    findings: [finding],
+    key: `${finding.category}:${finding.startOffset}:${finding.endOffset}`,
+  }
+}
+
+interface FindingSelection {
+  onHover: (highlight: Highlight | null) => void
+  onSelect: (highlight: Highlight) => void
+  selectedKey: string | null
+}
+
+// Hover previews a highlight; click pins it so it stays while the user
+// scrolls. Clicking a pinned item again unpins it.
+function selectableProps(
+  highlight: Highlight,
+  { onHover, onSelect, selectedKey }: FindingSelection,
 ) {
-  const isSelected = finding === selected
+  const isSelected = highlight.key === selectedKey
   return {
     'aria-pressed': isSelected,
     className: `finding selectable-finding${isSelected ? ' is-selected' : ''}`,
     onBlur: () => onHover(null),
-    onClick: () => onSelect(finding),
-    onFocus: () => onHover(finding),
+    onClick: () => onSelect(highlight),
+    onFocus: () => onHover(highlight),
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
-        onSelect(finding)
+        onSelect(highlight)
       }
     },
-    onMouseEnter: () => onHover(finding),
+    onMouseEnter: () => onHover(highlight),
     onMouseLeave: () => onHover(null),
     role: 'button',
     tabIndex: 0,
   }
+}
+
+function selectableFindingProps(finding: Finding, selection: FindingSelection) {
+  return selectableProps(highlightOf(finding), selection)
+}
+
+function HighlightMark({ finding, text }: { finding: Finding; text: string }) {
+  const value = text.slice(finding.startOffset, finding.endOffset)
+  if (finding.category !== 'line') {
+    return <mark className="editor-highlight">{value}</mark>
+  }
+  // Empty lines have no visible text, so mark each line with a bar.
+  return (
+    <>
+      {value.split(/(\r\n|\r|\n)/).map((part, index) =>
+        index % 2 === 1 ? (
+          part
+        ) : (
+          <mark className="editor-highlight editor-highlight-line" key={index}>
+            {part}
+          </mark>
+        ),
+      )}
+    </>
+  )
+}
+
+/** The text with every highlighted finding wrapped in a mark. */
+function highlightedText(text: string, findings: Finding[]) {
+  const nodes: ReactNode[] = []
+  let cursor = 0
+  for (const finding of [...findings].sort(
+    (left, right) => left.startOffset - right.startOffset,
+  )) {
+    // Overlapping findings are drawn once.
+    if (finding.startOffset < cursor) continue
+    nodes.push(text.slice(cursor, finding.startOffset))
+    nodes.push(
+      <HighlightMark finding={finding} key={finding.startOffset} text={text} />,
+    )
+    cursor = finding.endOffset
+  }
+  nodes.push(text.slice(cursor))
+  return nodes
 }
 
 function prefersReducedMotion() {
@@ -134,17 +192,17 @@ function prefersReducedMotion() {
 }
 
 function TextEditor({
-  activeFinding,
+  highlights,
   onChange,
   onScroll,
-  revealFinding,
+  reveal,
   scrollPosition,
   text,
 }: {
-  activeFinding: Finding | null
+  highlights: Finding[]
   onChange: (value: string) => void
   onScroll: (scrollLeft: number, scrollTop: number) => void
-  revealFinding: Finding | null
+  reveal: Highlight | null
   scrollPosition: { left: number; top: number }
   text: string
 }) {
@@ -152,12 +210,12 @@ function TextEditor({
   const overlayRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Bring a newly pinned finding into view, both on the page and inside the
-  // textarea's own scroll area.
+  // Bring a newly pinned highlight into view (its first occurrence), both on
+  // the page and inside the textarea's own scroll area.
   useEffect(() => {
     const mark = overlayRef.current?.querySelector('mark')
     const textarea = textareaRef.current
-    if (revealFinding === null || !mark || !textarea) return
+    if (reveal === null || !mark || !textarea) return
 
     textarea.scrollTop = Math.max(0, mark.offsetTop - textarea.clientHeight / 3)
     textarea.scrollLeft = Math.max(
@@ -168,24 +226,16 @@ function TextEditor({
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
       block: 'nearest',
     })
-  }, [revealFinding])
+  }, [reveal])
 
-  const range = activeFinding
-    ? {
-        end: activeFinding.endOffset,
-        start: activeFinding.startOffset,
-      }
-    : null
-  const before = range === null ? text : text.slice(0, range.start)
-  const highlighted = range === null ? '' : text.slice(range.start, range.end)
-  const after = range === null ? '' : text.slice(range.end)
+  const hasHighlight = highlights.length > 0
 
   return (
     <div
-      className={`text-editor${range === null ? '' : ' has-highlight'}`}
+      className={`text-editor${hasHighlight ? ' has-highlight' : ''}`}
       ref={editorRef}
     >
-      {range !== null && (
+      {hasHighlight && (
         <div
           aria-hidden="true"
           className="text-overlay"
@@ -194,25 +244,7 @@ function TextEditor({
             transform: `translate(${-scrollPosition.left}px, ${-scrollPosition.top}px)`,
           }}
         >
-          {before}
-          {activeFinding?.category === 'line' ? (
-            // Empty lines have no visible text, so mark each line with a bar.
-            highlighted.split(/(\r\n|\r|\n)/).map((part, index) =>
-              index % 2 === 1 ? (
-                part
-              ) : (
-                <mark
-                  className="editor-highlight editor-highlight-line"
-                  key={index}
-                >
-                  {part}
-                </mark>
-              ),
-            )
-          ) : (
-            <mark className="editor-highlight">{highlighted}</mark>
-          )}
-          {after}
+          {highlightedText(text, highlights)}
         </div>
       )}
       <textarea
@@ -239,21 +271,23 @@ export function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [hoveredFinding, setHoveredFinding] = useState<Finding | null>(null)
-  const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null)
+  const [hovered, setHovered] = useState<Highlight | null>(null)
+  const [selected, setSelected] = useState<Highlight | null>(null)
   const [scrollPosition, setScrollPosition] = useState({ left: 0, top: 0 })
   const selection: FindingSelection = {
-    onHover: setHoveredFinding,
-    onSelect: (finding) =>
-      setSelectedFinding((current) => (current === finding ? null : finding)),
-    selected: selectedFinding,
+    onHover: setHovered,
+    onSelect: (highlight) =>
+      setSelected((current) =>
+        current?.key === highlight.key ? null : highlight,
+      ),
+    selectedKey: selected?.key ?? null,
   }
 
   async function handleAnalyze() {
     setError(null)
     setIsAnalyzing(true)
-    setHoveredFinding(null)
-    setSelectedFinding(null)
+    setHovered(null)
+    setSelected(null)
 
     try {
       setAnalysis(await analyzeTextWithApi(text))
@@ -282,16 +316,16 @@ export function App() {
         <div className="input-area">
           <label htmlFor="text-input">Text to inspect</label>
           <TextEditor
-            activeFinding={hoveredFinding ?? selectedFinding}
+            highlights={(hovered ?? selected)?.findings ?? []}
             onChange={(value) => {
               setText(value)
               setAnalysis(null)
               setError(null)
-              setHoveredFinding(null)
-              setSelectedFinding(null)
+              setHovered(null)
+              setSelected(null)
             }}
             onScroll={(left, top) => setScrollPosition({ left, top })}
-            revealFinding={selectedFinding}
+            reveal={selected}
             scrollPosition={scrollPosition}
             text={text}
           />
@@ -345,6 +379,7 @@ function Results({
   const [openPanel, setOpenPanel] = useState<Panel | null>(null)
   const allDashFindings = dashFindings(findings)
   const symbolFindings = findings.filter(isSymbolFinding)
+  const allDetections = uniqueDetections(findings)
   const mainFindings = nonDashFindings(findings).filter(
     (finding) => !isSymbolFinding(finding),
   )
@@ -365,7 +400,7 @@ function Results({
       label: 'Symbols',
     },
     {
-      count: findings.length,
+      count: allDetections.length,
       hint: 'Everything the app detected, in one table.',
       id: 'all',
       label: 'Show all detections',
@@ -450,7 +485,7 @@ function Results({
         <SymbolInspector findings={symbolFindings} selection={selection} />
       )}
       {openPanel === 'all' && (
-        <AllDetections findings={findings} selection={selection} />
+        <AllDetections findings={allDetections} selection={selection} />
       )}
       {visibleFindings.length > 0 && (
         <ul className="finding-list">
@@ -649,19 +684,25 @@ function SymbolInspector({
             {shown.map((group) => {
               const [first] = group.occurrences
               const isExpanded = expanded === group.value
+              const highlight: Highlight = {
+                findings: group.occurrences,
+                key: `symbol:${group.value}`,
+              }
+              const isSelected = selection.selectedKey === highlight.key
               return (
                 <Fragment key={group.value}>
                   <tr
                     aria-expanded={isExpanded}
                     className={isExpanded ? 'is-selected' : undefined}
+                    // Opening a symbol highlights every place it occurs;
+                    // closing it clears that highlight.
                     onClick={() => {
                       setExpanded(isExpanded ? null : group.value)
-                      // Highlight the first place it occurs; onSelect toggles,
-                      // so skip it when that place is already pinned.
-                      if (!isExpanded && selection.selected !== first) {
-                        selection.onSelect(first)
-                      }
+                      if (isExpanded === isSelected)
+                        selection.onSelect(highlight)
                     }}
+                    onMouseEnter={() => selection.onHover(highlight)}
+                    onMouseLeave={() => selection.onHover(null)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
@@ -687,7 +728,7 @@ function SymbolInspector({
                               <li
                                 key={finding.startOffset}
                                 {...selectableFindingProps(finding, selection)}
-                                className={`occurrence${finding === selection.selected ? ' is-selected' : ''}`}
+                                className={`occurrence${highlightOf(finding).key === selection.selectedKey ? ' is-selected' : ''}`}
                                 title={finding.excerpt}
                               >
                                 {findingLocation(finding)}
@@ -737,11 +778,12 @@ function AllDetections({
   for (const finding of findings) {
     counts.set(finding.category, (counts.get(finding.category) ?? 0) + 1)
   }
-  const shown =
+  const groups = groupDetections(
     category === null
       ? findings
-      : findings.filter((finding) => finding.category === category)
-  const rows = shown.slice(0, MAX_TABLE_ROWS)
+      : findings.filter((finding) => finding.category === category),
+  )
+  const rows = groups.slice(0, MAX_TABLE_ROWS)
 
   return (
     <section aria-label="All detections" className="inspector">
@@ -749,8 +791,8 @@ function AllDetections({
         <div>
           <h4>All detections</h4>
           <p>
-            Everything the app found, in text order. Click a row to highlight
-            it.
+            Everything the app found, in text order. Repeated items share one
+            row; click a row to highlight every place it occurs.
           </p>
         </div>
         <span className="result-count">{findings.length}</span>
@@ -784,39 +826,56 @@ function AllDetections({
               <th scope="col">Code</th>
               <th scope="col">Type</th>
               <th scope="col">Severity</th>
+              <th scope="col">Count</th>
               <th scope="col">Where</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((finding, index) => (
-              <tr
-                key={`${finding.startOffset}-${finding.category}-${index}`}
-                {...selectableFindingProps(finding, selection)}
-                className={
-                  finding === selection.selected ? 'is-selected' : undefined
-                }
-                title={finding.description}
-              >
-                <td className="detections-value">{tableValue(finding)}</td>
-                <td>
-                  <code>{findingCode(finding)}</code>
-                </td>
-                <td>{categoryLabels[finding.category]}</td>
-                <td>
-                  <span className={`severity severity-${finding.severity}`}>
-                    {severityLabels[finding.severity]}
-                  </span>
-                </td>
-                <td>{findingLocation(finding)}</td>
-              </tr>
-            ))}
+            {rows.map((group) => {
+              const [first] = group.findings
+              const highlight: Highlight = {
+                findings: group.findings,
+                key: `all:${group.key}`,
+              }
+              const count = group.findings.length
+              return (
+                <tr
+                  key={group.key}
+                  {...selectableProps(highlight, selection)}
+                  className={
+                    highlight.key === selection.selectedKey
+                      ? 'is-selected'
+                      : undefined
+                  }
+                  title={first.description}
+                >
+                  <td className="detections-value">{tableValue(first)}</td>
+                  <td>
+                    <code>{findingCode(first)}</code>
+                  </td>
+                  <td>{categoryLabels[first.category]}</td>
+                  <td>
+                    <span className={`severity severity-${first.severity}`}>
+                      {severityLabels[first.severity]}
+                    </span>
+                  </td>
+                  <td>{count}</td>
+                  <td>
+                    {count === 1
+                      ? findingLocation(first)
+                      : `First: ${findingLocation(first)}`}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
-      {shown.length > rows.length && (
+      {groups.length > rows.length && (
         <p className="selection-hint">
           Showing the first {rows.length.toLocaleString()} of{' '}
-          {shown.length.toLocaleString()}. Pick a type above to narrow the list.
+          {groups.length.toLocaleString()} rows. Pick a type above to narrow the
+          list.
         </p>
       )}
     </section>
