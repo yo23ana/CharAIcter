@@ -11,5 +11,6 @@
     "target": "ES2022",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [{ "path": "../../packages/shared/tsconfig.json" }]
 }

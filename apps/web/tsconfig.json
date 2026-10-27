@@ -11,5 +11,6 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "useDefineForClassFields": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  "references": [{ "path": "../../packages/shared/tsconfig.json" }]
 }

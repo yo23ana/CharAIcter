@@ -1,0 +1,19 @@
+{
+  "name": "@charAIcter/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./alphabets": {
+      "types": "./dist/alphabets.d.ts",
+      "import": "./dist/alphabets.js"
+    },
+    "./analysis": {
+      "types": "./dist/analysis.d.ts",
+      "import": "./dist/analysis.js"
+    },
+    "./analyzer": {
+      "types": "./dist/analyzer.d.ts",
+      "import": "./dist/analyzer.js"
+    }
+  }
+}
