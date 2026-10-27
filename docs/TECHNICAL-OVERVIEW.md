@@ -161,22 +161,30 @@ readable name. ISO 639-1 codes are mapped to ISO 639-3 for common languages.
 
 ### Web UI (`apps/web/src/App.tsx`)
 
+- **Layout:** two columns on screens wider than 960 px. The editor is on the
+  left and is sticky, so it stays in view while the results on the right
+  scroll. Narrower screens stack the editor above the results.
 - **Editor:** a textarea with a pointer-transparent overlay that mirrors the
-  text and draws the highlight. Empty lines are highlighted with a bar, since
-  they have no visible text. Results are cleared whenever the text changes, and
-  analysis runs only when the user presses **Analyze text**.
-- **Selection:** hovering a finding previews its highlight. Clicking pins it, so
-  it stays while the user scrolls, and scrolls both the page and the textarea
-  so the highlight is visible. Clicking again unpins it. Cards are keyboard
-  accessible (Tab, then Enter or Space).
-- **Main list:** all findings except dashes and symbols, which have their own
-  panels. Whitespace findings can be hidden with a toggle.
-- **Panels** (one open at a time):
-  - **Dash Inspector:** every dash occurrence as a card.
+  text and draws highlights. It can draw any number at once (for example every
+  comma). Empty lines are highlighted with a bar, since they have no visible
+  text. Results are cleared whenever the text changes, and analysis runs only on
+  **Analyze text** or Ctrl + Enter.
+- **Selection:** a highlight covers one finding or a group. Hovering previews
+  it; clicking pins it, so it stays while the user scrolls, and scrolls the
+  textarea to its first occurrence. Clicking again unpins it. Items are
+  keyboard accessible (Tab, then Enter or Space).
+- **Results:** a summary with the language and the number of findings per
+  severity (each count filters the Findings tab), followed by tabs. Arrow keys
+  move between tabs:
+  - **Findings:** all findings except dashes and symbols, as cards, with a
+    whitespace toggle.
+  - **Dashes:** every dash occurrence as a card.
   - **Symbols:** each distinct symbol once, with name, code, and count, filtered
-    by kind. Expanding a symbol lists every place it occurs.
-  - **Show all detections:** one table of every finding, filtered by category,
-    with the first 1,000 rows rendered.
+    by kind. Opening a symbol highlights all its occurrences and lists them.
+  - **All:** one table row per distinct detection, with a count, filtered by
+    category. Clicking a row highlights every occurrence. Symbols already
+    covered by a more specific finding (such as a dash) are left out. At most
+    1,000 rows are rendered.
 
 ### Testing agent (`scripts/testing-agent.ts`)
 
@@ -211,7 +219,7 @@ Polish, and short Bulgarian, Russian, and Ukrainian phrases.
   code-point positions for people. Excerpts store the finding's index, so
   highlighting never depends on searching the excerpt.
 - **Noise control.** Symbols and dashes are common in ordinary text, so they
-  live in their own panels instead of the main list. The symbol check is opt-in
+  live in their own tabs instead of the main list. The symbol check is opt-in
   in the analyzer (`{ symbols: true }`), so other callers keep the
   original behavior.
 - **Not yet covered:** no browser (end-to-end) tests, no coverage reporting,

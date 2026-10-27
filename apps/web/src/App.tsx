@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 
 import type { AnalysisResult } from '@charAIcter/shared/analysis'
-import type { Finding } from '@charAIcter/shared/analyzer'
+import type { Finding, FindingSeverity } from '@charAIcter/shared/analyzer'
 
 import { analyzeTextWithApi } from './api'
 import { groupDetections, uniqueDetections } from './allDetections'
@@ -62,7 +62,8 @@ function findingValue(finding: Finding) {
 
 function findingCode(finding: Finding) {
   if (finding.codePoint !== undefined) return finding.codePoint
-  return finding.category === 'line' ? 'Line' : 'Word'
+  if (finding.category === 'line') return 'Line'
+  return finding.category === 'whitespace' ? 'Space' : 'Word'
 }
 
 function findingLocation(finding: Finding) {
@@ -195,6 +196,7 @@ function TextEditor({
   highlights,
   onChange,
   onScroll,
+  onSubmit,
   reveal,
   scrollPosition,
   text,
@@ -202,6 +204,7 @@ function TextEditor({
   highlights: Finding[]
   onChange: (value: string) => void
   onScroll: (scrollLeft: number, scrollTop: number) => void
+  onSubmit: () => void
   reveal: Highlight | null
   scrollPosition: { left: number; top: number }
   text: string
@@ -251,6 +254,12 @@ function TextEditor({
         aria-label="Text to inspect"
         id="text-input"
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault()
+            onSubmit()
+          }
+        }}
         onScroll={(event) =>
           onScroll(
             event.currentTarget.scrollLeft,
@@ -303,17 +312,17 @@ export function App() {
     }
   }
 
+  const canAnalyze = text.length > 0 && !isAnalyzing
+
   return (
     <main className="app-shell">
-      <section className="hero" aria-labelledby="page-title">
+      <header className="app-header">
         <h1 id="page-title">Meet CharAIcter.</h1>
-      </section>
+        <p>Find hidden, unusual, and lookalike characters in any text.</p>
+      </header>
 
-      <section className="workspace" aria-labelledby="workspace-title">
-        <h2 className="visually-hidden" id="workspace-title">
-          Text analysis
-        </h2>
-        <div className="input-area">
+      <div className="workspace">
+        <section aria-label="Text to inspect" className="editor-pane">
           <label htmlFor="text-input">Text to inspect</label>
           <TextEditor
             highlights={(hovered ?? selected)?.findings ?? []}
@@ -325,30 +334,41 @@ export function App() {
               setSelected(null)
             }}
             onScroll={(left, top) => setScrollPosition({ left, top })}
+            onSubmit={() => {
+              if (canAnalyze) void handleAnalyze()
+            }}
             reveal={selected}
             scrollPosition={scrollPosition}
             text={text}
           />
           <div className="input-footer">
-            <span>{text.length} characters</span>
-            <button
-              disabled={!text || isAnalyzing}
-              onClick={() => void handleAnalyze()}
-              type="button"
-            >
-              {isAnalyzing ? 'Analyzing…' : 'Analyze text'}
-            </button>
+            <span>{text.length.toLocaleString()} characters</span>
+            <span className="input-actions">
+              <kbd className="shortcut-hint">Ctrl + Enter</kbd>
+              <button
+                disabled={!canAnalyze}
+                onClick={() => void handleAnalyze()}
+                type="button"
+              >
+                {isAnalyzing ? 'Analyzing…' : 'Analyze text'}
+              </button>
+            </span>
           </div>
-        </div>
-        {error !== null && (
-          <p aria-live="polite" className="analysis-error" role="alert">
-            {error}
-          </p>
-        )}
-        {analysis !== null && (
-          <Results analysis={analysis} selection={selection} />
-        )}
-      </section>
+          {error !== null && (
+            <p aria-live="polite" className="analysis-error" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
+
+        <section aria-label="Results" className="results-pane">
+          {analysis !== null ? (
+            <Results analysis={analysis} selection={selection} />
+          ) : (
+            <EmptyResults hasText={text.length > 0} isAnalyzing={isAnalyzing} />
+          )}
+        </section>
+      </div>
 
       <footer>
         <span>Private by design.</span>
@@ -358,7 +378,35 @@ export function App() {
   )
 }
 
-type Panel = 'all' | 'dash' | 'symbols'
+function EmptyResults({
+  hasText,
+  isAnalyzing,
+}: {
+  hasText: boolean
+  isAnalyzing: boolean
+}) {
+  return (
+    <div className="placeholder-card">
+      <span aria-hidden="true" className="placeholder-icon">
+        ¶
+      </span>
+      <p className="placeholder-title">
+        {isAnalyzing ? 'Analyzing…' : 'Results appear here'}
+      </p>
+      <p className="placeholder-copy">
+        {isAnalyzing
+          ? 'Checking characters, whitespace, symbols, and language.'
+          : hasText
+            ? 'Press Analyze text, or Ctrl + Enter, to inspect your text.'
+            : 'Paste or type text on the left, then press Analyze text.'}
+      </p>
+    </div>
+  )
+}
+
+type Tab = 'all' | 'dash' | 'findings' | 'symbols'
+
+const severityOrder: FindingSeverity[] = ['high', 'medium', 'low', 'info']
 
 /** Most rows the "all detections" table renders at once. */
 const MAX_TABLE_ROWS = 1000
@@ -374,131 +422,187 @@ function Results({
   analysis: AnalysisResult
   selection: FindingSelection
 }) {
-  const { findings } = analysis
+  const { findings, language } = analysis
+  const [tab, setTab] = useState<Tab>('findings')
   const [showWhitespace, setShowWhitespace] = useState(true)
-  const [openPanel, setOpenPanel] = useState<Panel | null>(null)
+  const [severity, setSeverity] = useState<FindingSeverity | null>(null)
   const allDashFindings = dashFindings(findings)
   const symbolFindings = findings.filter(isSymbolFinding)
   const allDetections = uniqueDetections(findings)
   const mainFindings = nonDashFindings(findings).filter(
     (finding) => !isSymbolFinding(finding),
   )
-  const visibleFindings = showWhitespace
-    ? mainFindings
-    : mainFindings.filter((finding) => finding.category !== 'whitespace')
-  const panels: { count: number; hint: string; id: Panel; label: string }[] = [
-    {
-      count: allDashFindings.length,
-      hint: 'Dash characters and their exact positions.',
-      id: 'dash',
-      label: 'Dash Inspector',
-    },
-    {
-      count: symbolFindings.length,
-      hint: 'Every character that is not a letter or digit.',
-      id: 'symbols',
-      label: 'Symbols',
-    },
-    {
-      count: allDetections.length,
-      hint: 'Everything the app detected, in one table.',
-      id: 'all',
-      label: 'Show all detections',
-    },
+  const visibleFindings = mainFindings.filter(
+    (finding) =>
+      (showWhitespace || finding.category !== 'whitespace') &&
+      (severity === null || finding.severity === severity),
+  )
+  const tabs: { count: number; id: Tab; label: string }[] = [
+    { count: mainFindings.length, id: 'findings', label: 'Findings' },
+    { count: allDashFindings.length, id: 'dash', label: 'Dashes' },
+    { count: symbolFindings.length, id: 'symbols', label: 'Symbols' },
+    { count: allDetections.length, id: 'all', label: 'All' },
   ]
 
+  // Arrow keys move between tabs, as in a standard tab list.
+  function handleTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+    const index = tabs.findIndex((candidate) => candidate.id === tab)
+    const step = event.key === 'ArrowRight' ? 1 : -1
+    const next = tabs[(index + step + tabs.length) % tabs.length].id
+    setTab(next)
+    document.getElementById(`tab-${next}`)?.focus()
+  }
+
   return (
-    <section aria-labelledby="results-title" className="results">
-      <div className="results-heading">
-        <div>
-          <p className="language-result">
-            {analysis.language.confidence === 'low'
-              ? 'Best language match:'
-              : 'Detected language:'}{' '}
-            <strong>{analysis.language.name}</strong>
-            {analysis.language.languages !== undefined && (
-              <span> ({analysis.language.languages.join(', ')})</span>
-            )}
-            {analysis.language.confidence === 'low' && (
-              <span> (low confidence)</span>
-            )}
-          </p>
-          <h3 id="results-title">
-            {visibleFindings.length === 0
-              ? mainFindings.length === 0
-                ? 'Nothing unusual found.'
-                : 'Whitespace details are hidden.'
-              : `${visibleFindings.length} finding${visibleFindings.length === 1 ? '' : 's'} to review.`}
-          </h3>
-        </div>
-        <span className="result-count">{visibleFindings.length}</span>
-      </div>
-      {findings.length > 0 && (
-        <p className="selection-hint">
-          Click a finding to keep it highlighted in your text. Click it again to
-          clear the highlight.
+    <div className="results">
+      <div className="results-summary">
+        <p className="language-result">
+          {language.confidence === 'low' ? 'Best language match' : 'Language'}
+          {': '}
+          <strong>{language.name}</strong>
+          {language.languages !== undefined && (
+            <span> ({language.languages.join(', ')})</span>
+          )}
+          {language.confidence === 'low' && <span> · low confidence</span>}
         </p>
-      )}
-      {findings.some((finding) => finding.category === 'whitespace') && (
-        <div className="results-controls">
-          <button
-            aria-pressed={showWhitespace}
-            className="toggle-button"
-            onClick={() => setShowWhitespace((isVisible) => !isVisible)}
-            type="button"
+        <h3 id="results-title">
+          {mainFindings.length === 0
+            ? 'Nothing unusual found.'
+            : `${mainFindings.length} finding${mainFindings.length === 1 ? '' : 's'} to review`}
+        </h3>
+        {mainFindings.length > 0 && (
+          <div
+            aria-label="Filter findings by severity"
+            className="severity-summary"
           >
-            {showWhitespace ? 'Hide' : 'Show'} whitespace details
-          </button>
-          <span>
-            Includes visible markers for spaces and Unicode whitespace.
-          </span>
-        </div>
-      )}
-      <div className="panel-controls">
-        {panels.map((panel) => (
-          <button
-            aria-expanded={openPanel === panel.id}
-            className="toggle-button"
-            disabled={panel.count === 0}
-            key={panel.id}
-            onClick={() =>
-              setOpenPanel((current) =>
-                current === panel.id ? null : panel.id,
+            {severityOrder.map((level) => {
+              const count = mainFindings.filter(
+                (finding) => finding.severity === level,
+              ).length
+              return (
+                <button
+                  aria-pressed={severity === level}
+                  className={`severity-pill severity-${level}`}
+                  disabled={count === 0}
+                  key={level}
+                  onClick={() => {
+                    setSeverity((current) => (current === level ? null : level))
+                    setTab('findings')
+                  }}
+                  type="button"
+                >
+                  <strong>{count}</strong> {severityLabels[level]}
+                </button>
               )
-            }
-            title={panel.hint}
+            })}
+          </div>
+        )}
+      </div>
+
+      <div
+        aria-label="Result views"
+        className="tabs"
+        onKeyDown={handleTabKey}
+        role="tablist"
+      >
+        {tabs.map((candidate) => (
+          <button
+            aria-controls="results-panel"
+            aria-selected={tab === candidate.id}
+            className="tab"
+            id={`tab-${candidate.id}`}
+            key={candidate.id}
+            onClick={() => setTab(candidate.id)}
+            role="tab"
+            tabIndex={tab === candidate.id ? 0 : -1}
             type="button"
           >
-            {panel.label} ({panel.count})
+            {candidate.label}
+            <span className="tab-count">{candidate.count}</span>
           </button>
         ))}
       </div>
-      {openPanel === 'dash' && (
-        <Inspector
-          description="Each occurrence is shown with its original position."
-          findings={allDashFindings}
-          selection={selection}
-          title="Dash Inspector"
-        />
-      )}
-      {openPanel === 'symbols' && (
-        <SymbolInspector findings={symbolFindings} selection={selection} />
-      )}
-      {openPanel === 'all' && (
-        <AllDetections findings={allDetections} selection={selection} />
-      )}
-      {visibleFindings.length > 0 && (
-        <ul className="finding-list">
-          {visibleFindings.map((finding, index) => (
-            <FindingCard
-              finding={finding}
-              key={`${finding.startOffset}-${finding.category}-${index}`}
-              selection={selection}
-            />
+
+      <div
+        aria-labelledby={`tab-${tab}`}
+        className="tab-panel"
+        id="results-panel"
+        role="tabpanel"
+      >
+        {tab === 'findings' && (
+          <>
+            <div className="panel-toolbar">
+              <p className="panel-description">
+                Click a finding to keep it highlighted in your text.
+              </p>
+              {mainFindings.some(
+                (finding) => finding.category === 'whitespace',
+              ) && (
+                <button
+                  aria-pressed={showWhitespace}
+                  className="chip"
+                  onClick={() => setShowWhitespace((isVisible) => !isVisible)}
+                  type="button"
+                >
+                  Show whitespace
+                </button>
+              )}
+            </div>
+            {visibleFindings.length > 0 ? (
+              <FindingList findings={visibleFindings} selection={selection} />
+            ) : (
+              <p className="empty-panel">
+                {mainFindings.length === 0
+                  ? 'Nothing unusual found. Dashes and symbols are in their own tabs.'
+                  : 'No findings match the current filters.'}
+              </p>
+            )}
+          </>
+        )}
+        {tab === 'dash' &&
+          (allDashFindings.length > 0 ? (
+            <>
+              <p className="panel-description">
+                Every dash and hyphen, including the ordinary keyboard hyphen,
+                with its exact position.
+              </p>
+              <FindingList findings={allDashFindings} selection={selection} />
+            </>
+          ) : (
+            <p className="empty-panel">No dash characters found.</p>
           ))}
-        </ul>
-      )}
-    </section>
+        {tab === 'symbols' &&
+          (symbolFindings.length > 0 ? (
+            <SymbolInspector findings={symbolFindings} selection={selection} />
+          ) : (
+            <p className="empty-panel">No symbols found.</p>
+          ))}
+        {tab === 'all' && (
+          <AllDetections findings={allDetections} selection={selection} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FindingList({
+  findings,
+  selection,
+}: {
+  findings: Finding[]
+  selection: FindingSelection
+}) {
+  return (
+    <ul className="finding-list">
+      {findings.map((finding, index) => (
+        <FindingCard
+          finding={finding}
+          key={`${finding.startOffset}-${finding.category}-${index}`}
+          selection={selection}
+        />
+      ))}
+    </ul>
   )
 }
 
@@ -539,39 +643,6 @@ function FindingCard({
         <FindingExcerpt finding={finding} />
       </p>
     </li>
-  )
-}
-
-function Inspector({
-  description,
-  findings,
-  selection,
-  title,
-}: {
-  description: string
-  findings: Finding[]
-  selection: FindingSelection
-  title: string
-}) {
-  return (
-    <section aria-label={title} className="inspector">
-      <div className="inspector-heading">
-        <div>
-          <h4>{title}</h4>
-          <p>{description}</p>
-        </div>
-        <span className="result-count">{findings.length}</span>
-      </div>
-      <ul className="finding-list">
-        {findings.map((finding, index) => (
-          <FindingCard
-            finding={finding}
-            key={`${finding.startOffset}-${finding.category}-${index}`}
-            selection={selection}
-          />
-        ))}
-      </ul>
-    </section>
   )
 }
 
@@ -637,18 +708,11 @@ function SymbolInspector({
     kind === null ? groups : groups.filter((group) => group.kind === kind)
 
   return (
-    <section aria-label="Symbols" className="inspector">
-      <div className="inspector-heading">
-        <div>
-          <h4>Symbols</h4>
-          <p>
-            Every character that is not a letter or digit: punctuation,
-            brackets, quotes, dashes, currency, math, emoji, and more. Click a
-            symbol to see where it appears.
-          </p>
-        </div>
-        <span className="result-count">{groups.length}</span>
-      </div>
+    <>
+      <p className="panel-description">
+        {groups.length} different symbols: every character that is not a letter
+        or digit. Click one to highlight all its places in your text.
+      </p>
       <div className="chip-row">
         <button
           aria-pressed={kind === null}
@@ -750,7 +814,7 @@ function SymbolInspector({
           </tbody>
         </table>
       </div>
-    </section>
+    </>
   )
 }
 
@@ -786,17 +850,11 @@ function AllDetections({
   const rows = groups.slice(0, MAX_TABLE_ROWS)
 
   return (
-    <section aria-label="All detections" className="inspector">
-      <div className="inspector-heading">
-        <div>
-          <h4>All detections</h4>
-          <p>
-            Everything the app found, in text order. Repeated items share one
-            row; click a row to highlight every place it occurs.
-          </p>
-        </div>
-        <span className="result-count">{findings.length}</span>
-      </div>
+    <>
+      <p className="panel-description">
+        Everything the app found, in text order. Repeated items share one row;
+        click a row to highlight every place it occurs.
+      </p>
       <div className="chip-row">
         <button
           aria-pressed={category === null}
@@ -878,6 +936,6 @@ function AllDetections({
           list.
         </p>
       )}
-    </section>
+    </>
   )
 }
