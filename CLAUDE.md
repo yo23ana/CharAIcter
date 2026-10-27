@@ -10,14 +10,14 @@ positions and never modifies the user's text.
 On Windows PowerShell, use `npm.cmd` instead of `npm` (the execution policy
 blocks `npm.ps1`). Git Bash can use `npm`.
 
-| Command                      | Purpose                                                           |
-| ---------------------------- | ----------------------------------------------------------------- |
-| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000 |
-| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests              |
-| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier    |
-| `npm run build`              | Production build of all projects                                  |
-| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                   |
-| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                  |
+| Command                      | Purpose                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000                     |
+| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests                                  |
+| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier; hidden-character scan |
+| `npm run build`              | Production build of all projects                                                      |
+| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                                       |
+| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                                      |
 
 Run one area's tests with `npx vitest run packages/shared` (or a file path).
 A change is done when `npm run check` and `npm test` pass; also run
@@ -47,7 +47,8 @@ A change is done when `npm run check` and `npm test` pass; also run
 - Never trim, rewrite, log, or store the user's text. Render it as React text,
   never with `innerHTML`.
 - Write special characters in source as `\u` escapes (`'\u200B'`), never as
-  literal invisible or look-alike characters. Check new test strings for this.
+  literal invisible or look-alike characters. `npm run check:chars` (part of
+  `npm run check`) and a Claude Code hook on every edit flag literal ones.
 - For analyzer checks, character tables, and finding categories, follow the
   `unicode-analysis` skill; a new category touches six places.
 - Language detection changes must keep the benchmark at 25/25 and the API

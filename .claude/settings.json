@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/check-special-characters.mjs\" --hook",
+            "timeout": 30,
+            "statusMessage": "Checking for hidden characters"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -232,7 +232,7 @@ packages, or edits tests to hide failures.
 | Command                      | What it covers                                                                                                                                                                                                   |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm test`                   | Analyzer behavior and positions (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
-| `npm run check`              | Typecheck, ESLint, and Prettier                                                                                                                                                                                  |
+| `npm run check`              | Typecheck, ESLint, Prettier, and `check:chars`, which rejects literal invisible and control characters in tracked text files                                                                                     |
 | `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                          |
 
 `npm run typecheck` runs `tsc --build` over the shared package, the API, and the
