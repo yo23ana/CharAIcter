@@ -1,12 +1,42 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { languageCorpus } from './languageCorpus.js'
+import { languageCorpus } from './fixtures/languageCorpus.js'
 import { buildApp, MAX_INPUT_LENGTH } from './server.js'
 
 const apps: ReturnType<typeof buildApp>[] = []
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()))
+  delete process.env.CORS_ORIGIN
+})
+
+describe('CORS', () => {
+  const healthFrom = async (origin: string) => {
+    const app = buildApp()
+    apps.push(app)
+    return app.inject({ headers: { origin }, method: 'GET', url: '/health' })
+  }
+
+  it('allows any origin outside production by default', async () => {
+    const response = await healthFrom('http://localhost:5173')
+
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'http://localhost:5173',
+    )
+  })
+
+  it('allows only the configured origins when CORS_ORIGIN is set', async () => {
+    process.env.CORS_ORIGIN =
+      'https://charaicter.example, https://other.example'
+
+    const allowed = await healthFrom('https://other.example')
+    const blocked = await healthFrom('https://unknown.example')
+
+    expect(allowed.headers['access-control-allow-origin']).toBe(
+      'https://other.example',
+    )
+    expect(blocked.headers['access-control-allow-origin']).toBeUndefined()
+  })
 })
 
 describe('POST /analyze', () => {

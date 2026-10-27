@@ -1,12 +1,15 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 
-import type { AnalysisResult } from '@charAIcter/shared/analysis'
-import type { Finding, FindingSeverity } from '@charAIcter/shared/analyzer'
+import type { AnalysisResult } from '@charaicter/shared/analysis'
+import type { Finding, FindingSeverity } from '@charaicter/shared/analyzer'
 
 import { analyzeTextWithApi } from './api'
-import { groupDetections, uniqueDetections } from './allDetections'
-import { dashFindings, nonDashFindings } from './dashInspector'
+import {
+  groupDetections,
+  splitFindings,
+  uniqueDetections,
+} from './findingGroups'
 
 const categoryLabels = {
   control: 'Control character',
@@ -411,10 +414,6 @@ const severityOrder: FindingSeverity[] = ['high', 'medium', 'low', 'info']
 /** Most rows the "all detections" table renders at once. */
 const MAX_TABLE_ROWS = 1000
 
-function isSymbolFinding(finding: Finding) {
-  return finding.category === 'symbol'
-}
-
 function Results({
   analysis,
   selection,
@@ -426,12 +425,12 @@ function Results({
   const [tab, setTab] = useState<Tab>('findings')
   const [showWhitespace, setShowWhitespace] = useState(true)
   const [severity, setSeverity] = useState<FindingSeverity | null>(null)
-  const allDashFindings = dashFindings(findings)
-  const symbolFindings = findings.filter(isSymbolFinding)
+  const {
+    dashes: allDashFindings,
+    main: mainFindings,
+    symbols: symbolFindings,
+  } = splitFindings(findings)
   const allDetections = uniqueDetections(findings)
-  const mainFindings = nonDashFindings(findings).filter(
-    (finding) => !isSymbolFinding(finding),
-  )
   const visibleFindings = mainFindings.filter(
     (finding) =>
       (showWhitespace || finding.category !== 'whitespace') &&

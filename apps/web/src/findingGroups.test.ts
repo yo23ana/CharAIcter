@@ -1,8 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeText } from '../../../packages/shared/dist/analyzer.js'
+import { analyzeText } from '@charaicter/shared/analyzer'
 
-import { groupDetections, uniqueDetections } from './allDetections'
+import {
+  groupDetections,
+  isDashFinding,
+  splitFindings,
+  uniqueDetections,
+} from './findingGroups'
+
+describe('results tabs', () => {
+  it('puts every dash in the dash tab and keeps it out of main findings', () => {
+    const { dashes, main, symbols } = splitFindings(
+      analyzeText('a-b–c—d\u00A0e', { symbols: true }),
+    )
+
+    expect(dashes.map((finding) => finding.codePoint)).toEqual([
+      'U+002D',
+      'U+2013',
+      'U+2014',
+    ])
+    expect(main.map((finding) => finding.codePoint)).toEqual(['U+00A0'])
+    expect(symbols.map((finding) => finding.value)).toEqual(['-', '–', '—'])
+  })
+
+  it('classifies only dash findings as dash findings', () => {
+    const findings = analyzeText('a\u00A0–b')
+
+    expect(findings.every((finding) => isDashFinding(finding))).toBe(false)
+    expect(findings.some((finding) => isDashFinding(finding))).toBe(true)
+  })
+})
 
 describe('all detections', () => {
   it('lists a dash once, as a dash, not again as a symbol', () => {
@@ -21,7 +49,7 @@ describe('all detections', () => {
   })
 
   it('lists replacement characters and fullwidth punctuation once', () => {
-    const findings = analyzeText('a� b！', { symbols: true })
+    const findings = analyzeText('a\uFFFD b！', { symbols: true })
 
     expect(uniqueDetections(findings).map(({ category }) => category)).toEqual([
       'replacement',

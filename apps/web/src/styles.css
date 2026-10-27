@@ -97,16 +97,6 @@ h1 {
   min-height: calc(100vh - 9rem);
 }
 
-.visually-hidden {
-  clip: rect(0 0 0 0);
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
-}
-
 .placeholder-card {
   align-items: center;
   border: 1px dashed #c8bca9;

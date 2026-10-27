@@ -9,6 +9,7 @@
     "strict": true,
     "target": "ES2022",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": ["vite/client"],
     "useDefineForClassFields": true
   },
   "include": ["src", "vite.config.ts"],

@@ -28,8 +28,8 @@ export interface Finding {
   excerpt: string
   /** UTF-16 index in `excerpt` where the finding's value begins. */
   excerptStart: number
-  endColumn: number
   endLine: number
+  /** UTF-16 offset just past the finding's last character. */
   endOffset: number
   line: number
   /** Code-point position of the finding's last character on `endLine`. */
@@ -37,8 +37,7 @@ export interface Finding {
   /** Code-point position of the finding's first character on `line`. */
   linePosition: number
   lineType?: LineType
-  column: number
-  position: number
+  /** UTF-16 offset of the finding's first character. */
   startOffset: number
   severity: FindingSeverity
   value: string
@@ -294,15 +293,12 @@ function sourceLocation(text: string, startOffset: number, endOffset: number) {
   const endLineStart = lineStarts[endLine - 1]
 
   return {
-    column: startOffset - lineStart + 1,
-    endColumn: endOffset - endLineStart + 1,
     endLine,
     line,
     lineEndPosition:
       codePointsBefore(lastOffset) - codePointsBefore(endLineStart) + 1,
     linePosition:
       codePointsBefore(startOffset) - codePointsBefore(lineStart) + 1,
-    position: codePointsBefore(startOffset) + 1,
   }
 }
 
@@ -310,8 +306,6 @@ function withLocation(
   text: string,
   finding: Omit<
     Finding,
-    | 'column'
-    | 'endColumn'
     | 'endLine'
     | 'endOffset'
     | 'excerpt'
@@ -319,7 +313,6 @@ function withLocation(
     | 'line'
     | 'lineEndPosition'
     | 'linePosition'
-    | 'position'
     | 'startOffset'
   >,
   startOffset: number,

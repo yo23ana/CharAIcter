@@ -12,5 +12,6 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/fixtures"],
   "references": [{ "path": "../../packages/shared/tsconfig.json" }]
 }

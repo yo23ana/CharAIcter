@@ -1,4 +1,4 @@
-import type { AnalysisResult } from '@charAIcter/shared/analysis'
+import type { AnalysisResult } from '@charaicter/shared/analysis'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 

@@ -5,7 +5,7 @@ import { franc } from 'franc'
 import {
   languageCorpus,
   languageEdgeCases,
-} from '../apps/api/src/languageCorpus.js'
+} from '../apps/api/src/fixtures/languageCorpus.js'
 import { detectLanguage } from '../apps/api/src/analyze.js'
 
 type BenchmarkResult = {

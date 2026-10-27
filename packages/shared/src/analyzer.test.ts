@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeText } from '../../../packages/shared/dist/analyzer.js'
+import { analyzeText } from './analyzer.js'
 
 describe('analyzeText', () => {
   it('detects invisible characters and unusual whitespace', () => {
@@ -34,7 +34,7 @@ describe('analyzeText', () => {
         category: 'whitespace',
         description:
           'Leading whitespace: 2 whitespace characters at the beginning of the line.',
-        position: 1,
+        linePosition: 1,
         severity: 'info',
         value: '  ',
         whitespaceType: 'leading',
@@ -43,7 +43,7 @@ describe('analyzeText', () => {
         category: 'whitespace',
         description:
           'Trailing whitespace: 2 whitespace characters at the end of the line.',
-        position: 8,
+        linePosition: 8,
         severity: 'info',
         value: '  ',
         whitespaceType: 'trailing',
@@ -58,7 +58,7 @@ describe('analyzeText', () => {
       {
         description:
           'Repeated internal whitespace: 2 consecutive ordinary spaces between text.',
-        position: 4,
+        linePosition: 4,
         severity: 'info',
         value: '  ',
         whitespaceType: 'repeated-internal',
@@ -76,8 +76,8 @@ describe('analyzeText', () => {
         startOffset: 11,
         endOffset: 12,
         line: 1,
-        column: 12,
-        endColumn: 13,
+        linePosition: 12,
+        lineEndPosition: 12,
       },
     ])
   })
@@ -99,12 +99,12 @@ describe('analyzeText', () => {
         startOffset: 18,
         endOffset: 19,
         line: 2,
-        column: 6,
+        linePosition: 6,
       },
     ])
   })
 
-  it('preserves exact UTF-16 offsets and line columns after emoji', () => {
+  it('preserves UTF-16 offsets and character positions after emoji', () => {
     const findings = analyzeText('🙂 hello  world')
     const finding = findings.find(
       (candidate) => candidate.whitespaceType === 'repeated-internal',
@@ -114,8 +114,8 @@ describe('analyzeText', () => {
       startOffset: 8,
       endOffset: 10,
       line: 1,
-      column: 9,
-      endColumn: 11,
+      linePosition: 8,
+      lineEndPosition: 9,
     })
   })
 
@@ -138,7 +138,7 @@ describe('analyzeText', () => {
     expect(findings[0]).toMatchObject({
       codePoint: 'U+2009',
       description: 'Unusual whitespace: thin space.',
-      position: 2,
+      linePosition: 2,
       severity: 'low',
       whitespaceType: 'unusual',
     })
@@ -226,13 +226,12 @@ describe('analyzeText', () => {
   })
 
   it('reports line positions in characters, counting emoji once', () => {
-    const [finding] = analyzeText('first\n🙂🙂 a​b')
+    const [finding] = analyzeText('first\n🙂🙂 a\u200Bb')
 
     expect(finding).toMatchObject({
       line: 2,
       lineEndPosition: 5,
       linePosition: 5,
-      position: 11,
     })
   })
 
@@ -292,7 +291,7 @@ describe('analyzeText', () => {
   })
 
   it('detects Unicode line and paragraph separators', () => {
-    const findings = analyzeText('one two three')
+    const findings = analyzeText('one\u2028two\u2029three')
 
     expect(findings).toMatchObject([
       { category: 'line', codePoint: 'U+2028', lineType: 'separator' },
@@ -353,7 +352,7 @@ describe('analyzeText', () => {
   })
 
   it('detects C1 control, private-use, and filler characters', () => {
-    const findings = analyzeText('a\u0080bcㅤd')
+    const findings = analyzeText('a\u0080b\uE000c\u3164d')
 
     expect(findings.map((finding) => finding.category)).toEqual([
       'control',
@@ -409,7 +408,7 @@ describe('analyzeText', () => {
     })
 
     it('does not list letters, digits, spaces, or invisible characters', () => {
-      expect(symbols('abc АБВ 123\t\n​')).toEqual([])
+      expect(symbols('abc АБВ 123\t\n\u200B')).toEqual([])
     })
 
     it('keeps an emoji with a skin tone as one symbol', () => {
@@ -426,12 +425,12 @@ describe('analyzeText', () => {
       {
         category: 'whitespace',
         codePoint: 'U+00A0',
-        position: 3,
+        linePosition: 3,
       },
       {
         category: 'dash',
         codePoint: 'U+2013',
-        position: 4,
+        linePosition: 4,
       },
     ])
   })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeText } from '../../../packages/shared/dist/analyzer.js'
+import { analyzeText } from './analyzer.js'
 
 describe('generated analyzer edge cases', () => {
   it('keeps positions in code points when text contains an emoji', () => {
@@ -8,7 +8,7 @@ describe('generated analyzer edge cases', () => {
 
     expect(findings[0]).toMatchObject({
       category: 'invisible',
-      position: 3,
+      linePosition: 3,
       codePoint: 'U+200B',
     })
   })

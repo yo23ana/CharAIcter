@@ -49,10 +49,15 @@ const ignoredDirectories = new Set([
   'dist',
   'node_modules',
 ])
-const generatedTestPath = ['apps', 'web', 'src', 'analyzer.generated.test.ts']
+const generatedTestPath = [
+  'packages',
+  'shared',
+  'src',
+  'analyzer.generated.test.ts',
+]
 const generatedTest = `import { describe, expect, it } from 'vitest'
 
-import { analyzeText } from './analyzer'
+import { analyzeText } from './analyzer.js'
 
 describe('generated analyzer edge cases', () => {
   it('keeps positions in code points when text contains an emoji', () => {
@@ -60,7 +65,7 @@ describe('generated analyzer edge cases', () => {
 
     expect(findings[0]).toMatchObject({
       category: 'invisible',
-      position: 3,
+      linePosition: 3,
       codePoint: 'U+200B',
     })
   })
@@ -139,6 +144,9 @@ export function inspectRepository(root: string): RepositoryReport {
     exportedSymbols,
     scripts: packageData.scripts ?? {},
     architecture: [
+      existsSync(join(root, 'packages', 'shared'))
+        ? 'Shared analyzer package in packages/shared'
+        : null,
       existsSync(join(root, 'apps', 'web'))
         ? 'React/Vite browser application in apps/web'
         : null,

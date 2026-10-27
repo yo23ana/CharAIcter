@@ -1,12 +1,11 @@
 import { FastText } from 'fasttext.wasm'
 
-import { alphabets } from '../../../packages/shared/dist/alphabets.js'
-import type { AlphabetScript } from '../../../packages/shared/dist/alphabets.js'
+import { alphabets, type AlphabetScript } from '@charaicter/shared/alphabets'
 import type {
   AnalysisResult,
   DetectedLanguage,
-} from '../../../packages/shared/dist/analysis.js'
-import { analyzeText } from '../../../packages/shared/dist/analyzer.js'
+} from '@charaicter/shared/analysis'
+import { analyzeText } from '@charaicter/shared/analyzer'
 
 export const MAX_INPUT_LENGTH = 100_000
 /** Fewer letters than this is too little text to name a language. */
