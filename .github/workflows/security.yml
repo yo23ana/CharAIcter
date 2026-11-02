@@ -1,0 +1,94 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Mondays at 06:00 UTC, so new advisories surface without new commits.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: List every advisory in the job summary
+        run: |
+          {
+            echo '## npm audit'
+            echo '```'
+            npm audit || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Lockfile sources, integrity, and install scripts
+        run: npm run check:lockfile
+      - name: Registry signatures and provenance
+        run: npm audit signatures
+      - name: Any vulnerability in production dependencies
+        run: npm audit --omit=dev
+      - name: High or critical vulnerability in any dependency
+        run: npm audit --audit-level=high
+
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks 8.30.1
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --silent --show-error --location --output gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check
+          tar --extract --gzip --file gitleaks.tar.gz gitleaks
+      - name: Scan every commit for secrets
+        run: '"$RUNNER_TEMP/gitleaks" git --redact --verbose --no-banner .'
+
+  code:
+    name: Code (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The regex_dos rule flags every regular expression applied to input,
+      # which is what the analyzer does throughout. The analyzer tests time
+      # worst-case input instead.
+      - name: Scan with the JavaScript, TypeScript, React, Node.js, and secrets rules
+        run: >
+          docker run --rm --volume "$PWD:/src:ro" --workdir /src
+          semgrep/semgrep:1.182.0@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af
+          semgrep scan --error --metrics=off --disable-version-check
+          --config p/javascript --config p/typescript --config p/react
+          --config p/nodejsscan --config p/secrets
+          --exclude-rule ajinabraham.njsscan.dos.regex_dos.regex_dos
+
+  workflows:
+    name: Workflows (zizmor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          version: 1.31.1
+          # Code scanning uploads need GitHub Advanced Security, which this
+          # private repository does not have; findings fail the job instead.
+          advanced-security: false

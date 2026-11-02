@@ -130,8 +130,10 @@ Location data on every finding:
 
 Performance: line starts and astral-character offsets are indexed once per
 text, and each finding's location is found by binary search. Symbol scanning
-segments graphemes only around candidate characters. A 100,000-character text
-is analyzed in roughly 0.1–0.2 s.
+segments graphemes only around candidate characters. Every check is linear in
+the text length. An ordinary 100,000-character text is analyzed in roughly
+0.2–0.3 s; text that yields a finding for nearly every character (emoji,
+dashes) takes up to about 2 s.
 
 ### Alphabet data (`packages/shared/src/alphabets.ts`)
 
@@ -232,7 +234,7 @@ packages, or edits tests to hide failures.
 | Command                      | What it covers                                                                                                                                                                                                   |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm test`                   | Analyzer behavior and positions (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
-| `npm run check`              | Typecheck, ESLint, Prettier, and `check:chars`, which rejects literal invisible and control characters in tracked text files                                                                                     |
+| `npm run check`              | Typecheck, ESLint, Prettier, `check:chars`, which rejects literal invisible and control characters in tracked text files, and `check:lockfile` (see Security)                                                    |
 | `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                          |
 
 `npm run typecheck` runs `tsc --build` over the shared package, the API, and the
@@ -245,6 +247,31 @@ GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, check, tests, and
 build on every push to `main`/`master` and on pull requests, using the Node
 version in `.nvmrc`. `.gitattributes` keeps LF line endings on every platform,
 which the Prettier check expects.
+
+## Security and supply chain
+
+| Area                | Control                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Installs            | `.npmrc` sets `ignore-scripts`, `min-release-age=7` (new versions are chosen only after a week), and `allow-git=none`. `npm ci` installs the lockfile as it is                                                                  |
+| Lockfile            | `check:lockfile` requires every package to come from `registry.npmjs.org` over HTTPS with a sha512 hash, and fails on install scripts except in reviewed packages (`esbuild`, `fsevents`, which work without them)              |
+| Workflows           | Actions are pinned to commit SHAs, jobs get read-only `contents` permission, and checkouts do not keep the token                                                                                                                |
+| `security.yml`      | On every push, pull request, weekly (Monday 06:00 UTC), and on demand: `npm audit`, `npm audit signatures`, gitleaks over the full git history, Semgrep (JavaScript, TypeScript, React, Node.js, and secrets rules), and zizmor |
+| Dependabot          | `dependabot.yml` proposes weekly, grouped npm and GitHub Actions updates after a 7-day cooldown. Alerts and security updates are repository settings                                                                            |
+| Secrets             | `.gitignore` excludes `.env` files (except `.env.example`), `*.pem`, and `*.key`; Claude Code settings deny reading them                                                                                                        |
+| AI coding assistant | Claude Code runs `check:chars` after every edit, may run only read-only npm scripts without asking, and is denied force pushes and `npm publish`                                                                                |
+
+`npm audit` fails the job on any advisory in production dependencies, and on
+high or critical ones in development dependencies. Every advisory is listed in
+the job summary. Moderate development-only advisories do not fail it because
+some, such as a `minimatch` advisory reached through ESLint, have no compatible
+fix yet.
+
+The repository is private, so GitHub code scanning, secret push protection,
+and dependency review are unavailable without GitHub Advanced Security.
+Scanner findings fail the job instead of appearing in the Security tab, and a
+committed secret is caught after the push, not blocked before it. The gitleaks
+binary (checked against its SHA-256), the Semgrep image (pinned by digest), and
+the zizmor version are updated by hand; Dependabot updates only the actions.
 
 ## Challenges, solutions, and design trade-offs
 
@@ -263,6 +290,12 @@ which the Prettier check expects.
   live in their own tabs instead of the main list. The symbol check is opt-in
   in the analyzer (`{ symbols: true }`), so other callers keep the
   original behavior.
+- **Linear-time analysis.** The API accepts 100,000 characters from anyone and
+  runs the analyzer on a single thread, so a slow check is a denial-of-service
+  risk. The whitespace check used to search ahead again after every space run,
+  which took about 10 s on alternating spaces and no-break spaces; it now
+  reuses one forward search. Analyzer tests time such worst-case input, and
+  Semgrep's generic regular-expression rule is turned off in favor of them.
 - **Not yet covered:** no browser (end-to-end) tests, no coverage reporting,
-  and line-ending differences (CRLF vs LF) are not reported because browsers
-  normalize textarea line endings.
+  no rate limiting on the API, and line-ending differences (CRLF vs LF) are
+  not reported because browsers normalize textarea line endings.

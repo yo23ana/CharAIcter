@@ -12,15 +12,15 @@ positions and never modifies the user's text.
 On Windows PowerShell, use `npm.cmd` instead of `npm` (the execution policy
 blocks `npm.ps1`). Git Bash can use `npm`.
 
-| Command                      | Purpose                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------- |
-| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000                     |
-| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests                                  |
-| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier; hidden-character scan |
-| `npm run build`              | Production build of all projects                                                      |
-| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                                       |
-| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                                      |
-| `npm run format`             | Prettier rewrite; fixes `format:check` failures (files must use LF line endings)      |
+| Command                      | Purpose                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000                                     |
+| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests                                                  |
+| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier; hidden-character scan; lockfile check |
+| `npm run build`              | Production build of all projects                                                                      |
+| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                                                       |
+| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                                                      |
+| `npm run format`             | Prettier rewrite; fixes `format:check` failures (files must use LF line endings)                      |
 
 Use Node 22 or newer (`.nvmrc` pins 24). Run one area's tests with `npx vitest run packages/shared` (or a file path).
 A change is done when `npm run check` and `npm test` pass; also run
@@ -67,6 +67,13 @@ A change is done when `npm run check` and `npm test` pass; also run
 - Write special characters in source as `\u` escapes (`'\u200B'`), never as
   literal invisible or look-alike characters. `npm run check:chars` (part of
   `npm run check`) and a Claude Code hook on every edit flag literal ones.
+- Supply chain: `.npmrc` blocks install scripts, git dependencies, and
+  versions published less than 7 days ago (`npm ci` still installs the
+  lockfile as is). `check:lockfile` fails on a package from outside the npm
+  registry or with unreviewed install scripts. In workflows, pin actions to a
+  full commit SHA with a version comment and keep `permissions: contents: read`;
+  `.github/workflows/security.yml` runs npm audit, gitleaks, Semgrep, and
+  zizmor.
 - Ask before launching servers or browsers. If the user's dev server is
   already running, it reloads changes on its own.
 - Commit only when asked. Use the existing message style (`feat:`, `fix:`,

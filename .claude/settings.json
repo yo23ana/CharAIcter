@@ -7,7 +7,20 @@
       "Bash(npm run typecheck)",
       "Bash(npm run lint)",
       "Bash(npm run format:check)",
-      "Bash(npm run language:benchmark)"
+      "Bash(npm run language:benchmark)",
+      "Bash(npm run check:lockfile)",
+      "Bash(npm audit)",
+      "Bash(npm audit signatures)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(npm publish*)"
     ]
   },
   "hooks": {

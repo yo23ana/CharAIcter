@@ -176,7 +176,7 @@ export function runTestCycle(root: string): TestCycleReport {
   const generated = generateTests(root)
   const testCommand = 'npm.cmd test -- --reporter=verbose'
   let testPassed = false
-  let testOutput = ''
+  let testOutput: string
 
   try {
     const isWindows = process.platform === 'win32'
