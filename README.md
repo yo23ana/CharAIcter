@@ -10,7 +10,7 @@ The current version includes:
 - Node.js and Fastify API in `apps/api`
 - Strict TypeScript project references
 - ESLint, Prettier, Vitest, and reproducible build scripts
-- Client-side text analysis for invisible characters, unusual whitespace,
+- Text analysis on the API for invisible characters, unusual whitespace,
   leading/trailing and repeated internal spaces, control/replacement
   characters, and words mixing Latin, Cyrillic, and Greek letters
 - Line structure checks for empty and whitespace-only lines (grouped into
