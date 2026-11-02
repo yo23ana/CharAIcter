@@ -3,11 +3,15 @@ paths:
   - 'packages/shared/src/**/*.ts'
 ---
 
-# Analyzer rules (`packages/shared`)
+# Core rules (`packages/shared`)
 
-- Keep the analyzer pure and deterministic: no DOM, React, network, logging,
-  or state kept between calls. The same text must always give the same
-  findings in the same order.
+- Keep the core pure and deterministic: no DOM, React, network, logging, or
+  state kept between calls. The same text must always give the same findings
+  in the same order. Anything that needs I/O, such as a model, is passed in as
+  a function, like `PredictLanguages` in `language.ts`.
+- Language rules (`language.ts`) are tested with a stand-in model in
+  `language.test.ts`. After changing them, `npm run language:benchmark` must
+  stay at 25/25 and the API tests must pass.
 - Iterate text by code point (`codePointAt`, then advance by the character's
   length) so emoji and other astral characters are never split.
 - Create every finding with the `locate` function that `analyzeText` gets from

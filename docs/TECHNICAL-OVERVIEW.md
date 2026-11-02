@@ -9,11 +9,11 @@ text; it only reports findings with exact positions.
 
 The repository is an npm workspace with three parts:
 
-| Path              | Role                                                               |
-| ----------------- | ------------------------------------------------------------------ |
-| `packages/shared` | Pure, dependency-free analyzer, alphabet data, and shared types    |
-| `apps/api`        | Fastify API: language detection plus the shared analyzer           |
-| `apps/web`        | React/Vite UI: text editor, findings, inspectors, and highlighting |
+| Path              | Role                                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `packages/shared` | Core: pure, dependency-free analyzer, language rules, data, and shared types |
+| `apps/api`        | Fastify API: validates requests, loads fastText, and runs the core           |
+| `apps/web`        | React/Vite UI: text editor, findings, inspectors, and highlighting           |
 
 `packages/shared` is linked into `node_modules` as `@charaicter/shared` by npm
 workspaces, so the API and the web app import it by package name (resolved to
@@ -24,13 +24,11 @@ dev` builds the shared package and starts the web app (port 5173) and the API
 ## System architecture
 
 ```
-Browser (apps/web)                      API (apps/api)
+Browser (apps/web)                      API (apps/api)              Core (packages/shared)
   textarea + overlay                     POST /analyze
-  "Analyze text" ──── { text } ────────▶   detectLanguage(text)   ── fastText LID-176
-                                           analyzeText(text, { symbols: true })
-  results, inspectors ◀── AnalysisResult ─┘          │
-                                                     ▼
-                                           packages/shared/analyzer
+  "Analyze text" ──── { text } ────────▶   fastText LID-176 ─ predict ─▶ detectLanguage(text, predict)
+                                           ────────────────────────────▶ analyzeText(text, { symbols: true })
+  results, inspectors ◀── AnalysisResult ─┘
 ```
 
 Analysis runs on the API, not in the browser. The UI sends the original text,
@@ -41,6 +39,23 @@ uses the current origin. No text is stored by the API.
 
 `packages/shared` must be built (`npm run build:shared`) before the web app,
 the API, or the tests use it; every relevant npm script does this first.
+
+### Code organization
+
+The code is split into three layers with one-way dependencies. ESLint
+(`eslint.config.js`) and each project's TypeScript settings reject imports and
+APIs that cross a boundary.
+
+| Layer    | Path                  | Responsibility                                                                  | Boundary                                                                                                        |
+| -------- | --------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Core     | `packages/shared/src` | Pure, deterministic detection: findings, language rules, data, and shared types | Imports only its own modules; compiled without DOM or Node.js types; no `console`, `Math.random`, or `Date.now` |
+| Backend  | `apps/api/src`        | HTTP, validation, model loading, and combining results                          | Uses the core by package name; compiled without DOM types; never imports frontend code                          |
+| Frontend | `apps/web/src`        | Rendering and interaction                                                       | Imports only types from the core and reaches the backend over HTTP; `lib/` helpers import only types from React |
+
+Anything that needs I/O is passed into the core as a function. The API gives
+`detectLanguage` a `PredictLanguages` function backed by fastText, so the
+language rules are tested with a stand-in model and need no network or model
+files.
 
 ### `POST /analyze`
 
@@ -135,29 +150,19 @@ the text length. An ordinary 100,000-character text is analyzed in roughly
 0.2–0.3 s; text that yields a finding for nearly every character (emoji,
 dashes) takes up to about 2 s.
 
-### Alphabet data (`packages/shared/src/alphabets.ts`)
+### Language rules (`packages/shared/src/language.ts`)
 
-Lowercase alphabets and scripts for about 30 languages, keyed by ISO 639-3
-code. The language detector uses them to penalize languages whose alphabet
-lacks letters found in the text.
-
-### API (`apps/api`)
-
-`server.ts` sets up Fastify with `GET /health` and the schema-validated
-`POST /analyze`. Request logging is off during tests. CORS follows
-`CORS_ORIGIN` (a comma-separated list); without it, development allows any
-origin and production allows none. `analyze.ts` holds language detection and
-calls `analyzeText(text, { symbols: true })`. The benchmark text lives in
-`src/fixtures` and, like the tests, is excluded from the build output.
-
-Language detection (`detectLanguage`):
+`detectLanguage(text, predict)` decides the language from a model's
+predictions; the model itself is the `predict` function the API passes in.
+`alphabets.ts` holds lowercase alphabets and scripts for about 30 languages,
+keyed by ISO 639-3 code.
 
 1. Split the text's words by script (Latin, Cyrillic, Greek, other). Fewer than
-   12 letters in total returns `Undetermined`.
+   12 letters in total returns `Undetermined` without asking the model.
 2. If two scripts each have at least 20 letters, detect each script's words
    separately. If they produce different languages, return `mul`.
-3. Otherwise run the FastText LID-176 WebAssembly model (initialized once at
-   startup) on the whole text and rank its top 10 predictions:
+3. Otherwise rank the model's predictions for the whole text (the API passes
+   fastText's top 10):
    - **Script check:** for Cyrillic and Greek text, only languages known to use
      that script are kept. For Latin text, only languages known to use another
      script are dropped.
@@ -174,6 +179,19 @@ Language detection (`detectLanguage`):
 
 Language names come from `Intl.DisplayNames`, so any fastText language gets a
 readable name. ISO 639-1 codes are mapped to ISO 639-3 for common languages.
+`language.test.ts` covers these rules with a stand-in model.
+
+### API (`apps/api`)
+
+`server.ts` sets up Fastify with `GET /health` and the schema-validated
+`POST /analyze`. Request logging is off during tests. CORS follows
+`CORS_ORIGIN` (a comma-separated list); without it, development allows any
+origin and production allows none. `analyze.ts` loads the fastText LID-176
+WebAssembly model once at startup and wraps it as a `PredictLanguages`
+function (text on one line, top 10 labels with the `__label__` prefix
+removed). `analyzeInput` returns `detectLanguage` with those predictions and
+`analyzeText(text, { symbols: true })`. The benchmark text lives in
+`src/fixtures` and, like the tests, is excluded from the build output.
 `franc` is used only as the baseline in the benchmark.
 
 ### Web UI (`apps/web/src`)
@@ -231,11 +249,11 @@ packages, or edits tests to hide failures.
 
 ## Testing
 
-| Command                      | What it covers                                                                                                                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`                   | Analyzer behavior and positions (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
-| `npm run check`              | Typecheck, ESLint, Prettier, `check:chars`, which rejects literal invisible and control characters in tracked text files, and `check:lockfile` (see Security)                                                    |
-| `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                          |
+| Command                      | What it covers                                                                                                                                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                   | Analyzer behavior and positions, and language rules with a stand-in model (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
+| `npm run check`              | Typecheck, ESLint, Prettier, `check:chars`, which rejects literal invisible and control characters in tracked text files, and `check:lockfile` (see Security)                                                                                              |
+| `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                                                                    |
 
 `npm run typecheck` runs `tsc --build` over the shared package, the API, and the
 web app, then `tsconfig.tests.json` over test files and scripts, which the

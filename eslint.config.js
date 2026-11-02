@@ -30,4 +30,125 @@ export default tseslint.config(
       },
     },
   },
+
+  // Code organization (see CLAUDE.md). The core is pure detection logic, the
+  // backend and frontend build on it, and the two apps talk only over HTTP.
+  {
+    files: ['packages/shared/src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!\\.{1,2}/)',
+              message:
+                'The core (packages/shared) is pure: import only its own modules, never packages or Node.js APIs.',
+            },
+            {
+              group: ['**/apps/**'],
+              message: 'The core never imports backend or frontend code.',
+            },
+          ],
+        },
+      ],
+      'no-console': 'error',
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Math',
+          property: 'random',
+          message: 'The core is deterministic.',
+        },
+        {
+          object: 'Date',
+          property: 'now',
+          message: 'The core is deterministic.',
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/api/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                'react',
+                'react-dom',
+                'react-dom/*',
+                '**/apps/web/**',
+                '**/web/src/**',
+              ],
+              message: 'The backend never imports frontend code.',
+            },
+            {
+              group: ['**/packages/**'],
+              message:
+                'Import the core by package name (@charaicter/shared/...).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@charaicter/shared/*'],
+              allowTypeImports: true,
+              message:
+                'Analysis runs on the API: the frontend imports only types from the core.',
+            },
+            {
+              group: [
+                '**/apps/api/**',
+                '**/api/src/**',
+                '**/packages/**',
+                'fastify',
+                '@fastify/*',
+                'fasttext.wasm',
+                'node:*',
+              ],
+              message:
+                'The frontend reaches the backend over HTTP (src/api.ts) and never imports server code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/web/src/lib/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@charaicter/shared/*', 'react', 'react-dom'],
+              allowTypeImports: true,
+              message:
+                'lib/ holds pure UI helpers: import only types from React and the core.',
+            },
+            {
+              group: ['../components/*', '../App', '../api'],
+              message: 'lib/ holds pure UI helpers: no components or requests.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 )

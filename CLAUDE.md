@@ -26,22 +26,37 @@ Use Node 22 or newer (`.nvmrc` pins 24). Run one area's tests with `npx vitest r
 A change is done when `npm run check` and `npm test` pass; also run
 `npm run build` for UI or cross-project changes.
 
+## Code organization
+
+Every file belongs to exactly one layer; put new files where this table says.
+ESLint (`eslint.config.js`) and each project's `tsconfig.json` reject imports
+and APIs that cross a boundary.
+
+| Layer    | Path                  | Holds                                                                                                                                                                                                                                         | May use                                                                                                     |
+| -------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Core     | `packages/shared/src` | Pure, deterministic detection: `analyzer.ts` with one check per file in `checks/`, `language.ts` (language rules; the model is passed in as `PredictLanguages`), data tables, and the types the API and web share (`types.ts`, `analysis.ts`) | Only its own modules. No packages, Node.js, DOM, I/O, `console`, `Math.random`, or `Date.now`               |
+| Backend  | `apps/api/src`        | HTTP routes and validation (`server.ts`), model loading and combining results (`analyze.ts`), benchmark data (`fixtures/`)                                                                                                                    | The core by package name, Node.js, and server packages; never frontend code                                 |
+| Frontend | `apps/web/src`        | Page state (`App.tsx`), React components (`components/`), pure UI helpers with no JSX or requests (`lib/`), and the API client (`api.ts`)                                                                                                     | Only types from the core; reaches the backend over HTTP through `api.ts`; `lib/` uses only types from React |
+| Tooling  | `scripts/`            | Repository checks and benchmarks, never imported by the apps                                                                                                                                                                                  | Anything                                                                                                    |
+
+- Place code by what it does, not by who calls it. A rule that decides what is
+  a finding or which language a text is in belongs in the core, even if only
+  the API uses it. Code that does I/O (HTTP, models, files) belongs in the
+  backend; rendering and user interaction belong in the frontend.
+- A core module that the apps import needs an `exports` entry in
+  `packages/shared/package.json` (now `./analyzer`, `./analysis`, and
+  `./language`).
+- Tests sit next to the file they test, in the same layer.
+
 ## Architecture notes
 
-- Three parts: `packages/shared` (the analyzer, used by the others as
-  `@charaicter/shared`), `apps/api` (Fastify: fastText language detection plus
-  the analyzer), and `apps/web` (React UI).
 - Only `packages/*` is an npm workspace. `apps/api` and `apps/web` have no
   `package.json`, so every dependency goes in the root `package.json`.
-- The shared package exposes only the subpaths in the `exports` of
-  `packages/shared/package.json`: `./analyzer` (`analyzeText`, finding types),
-  `./analysis` (`AnalysisResult`, the `/analyze` response contract), and
-  `./alphabets`. A new module that the API or web app imports needs an
-  `exports` entry.
 - Analysis runs on the API, not in the browser: the web app posts `{ text }`
   to `/analyze` and renders the returned `{ language, findings }`. The route
   in `apps/api/src/server.ts` validates the body; `analyzeInput` in
-  `apps/api/src/analyze.ts` combines `detectLanguage(text)` with
+  `apps/api/src/analyze.ts` combines `detectLanguageWithFastText(text)` (the
+  core's `detectLanguage` fed with fastText predictions) with
   `analyzeText(text, { symbols: true })`.
 - In development, Vite proxies only `/analyze` to the API
   (`apps/web/vite.config.ts`); a new endpoint the web app calls needs its own
@@ -52,15 +67,16 @@ A change is done when `npm run check` and `npm test` pass; also run
   analyzer tests that omit it see no symbol findings.
 - `tsc --build` covers the three projects but excludes shared and API tests
   and API fixtures; `tsconfig.tests.json` type-checks those plus `scripts/`.
+  The core compiles without DOM or Node.js types, and the API without DOM
+  types.
 
 ## Rules
 
 - Area rules in `.claude/rules/` load automatically when you work on matching
   files: `analyzer.md` (packages/shared), `web.md` (apps/web), `api.md`
   (apps/api), and `testing.md` (test files).
-- Import the shared package by name (`@charaicter/shared/analyzer`), never by a
-  relative path into `packages/`. The web app and API use its built `dist`, so
-  run `npm run build:shared` after changing it (`npm test` and `npm run dev`
+- The web app and API use the core's built `dist`, so run
+  `npm run build:shared` after changing it (`npm test` and `npm run dev`
   already do).
 - Never trim, rewrite, log, or store the user's text. Render it as React text,
   never with `innerHTML`.

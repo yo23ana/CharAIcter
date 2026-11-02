@@ -12,11 +12,11 @@ paths:
   `NODE_ENV` is `test`.
 - Cross-origin access follows `CORS_ORIGIN`; without it, production allows no
   other origins. Do not loosen this default.
-- Language detection (`analyze.ts`) ranks fastText predictions, keeps only
-  languages that use the text's script, subtracts a penalty for letters the
-  alphabet lacks, and adds a bonus for distinctive Cyrillic words. After any
-  change, `npm run language:benchmark` must stay at 25/25 and the API tests
-  must pass.
+- The backend does I/O only. `analyze.ts` loads fastText and passes its
+  predictions to `detectLanguage` from `@charaicter/shared/language`; the
+  language rules themselves (script filter, alphabet penalty, distinctive
+  words, confidence) live in the core. After any change to either,
+  `npm run language:benchmark` must stay at 25/25 and the API tests must pass.
 - New language cases go in `src/fixtures/languageCorpus.ts` and in
   `server.test.ts`. Fixtures and tests are excluded from the build output;
   keep it that way.

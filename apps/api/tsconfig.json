@@ -3,6 +3,11 @@
     "composite": true,
     "declaration": true,
     "esModuleInterop": true,
+    // The backend runs on Node.js only, so browser (DOM) APIs do not exist.
+    "lib": ["ES2022"],
+    "types": ["node"],
+    // fasttext.wasm's declarations mention browser types; skip checking them.
+    "skipLibCheck": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",

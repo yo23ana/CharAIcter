@@ -2,6 +2,9 @@
   "compilerOptions": {
     "composite": true,
     "declaration": true,
+    // The core is pure: no browser (DOM) or Node.js APIs exist here.
+    "lib": ["ES2022"],
+    "types": [],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",

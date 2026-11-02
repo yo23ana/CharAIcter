@@ -6,7 +6,7 @@ import {
   languageCorpus,
   languageEdgeCases,
 } from '../apps/api/src/fixtures/languageCorpus.js'
-import { detectLanguage } from '../apps/api/src/analyze.js'
+import { detectLanguageWithFastText } from '../apps/api/src/analyze.js'
 
 type BenchmarkResult = {
   accuracy: number
@@ -31,7 +31,7 @@ export async function benchmarkCorpus(): Promise<BenchmarkResult> {
       baselineCorrect += 1
     }
 
-    const predicted = (await detectLanguage(entry.text)).code
+    const predicted = (await detectLanguageWithFastText(entry.text)).code
     if (predicted === 'und') undetermined += 1
     if (predicted === entry.code) {
       correct += 1
@@ -66,7 +66,7 @@ console.log(
 console.log(`Undetermined: ${result.undetermined}`)
 console.log(`Inference time: ${result.elapsedMs.toFixed(1)} ms total`)
 for (const edgeCase of languageEdgeCases) {
-  const detected = await detectLanguage(edgeCase.text)
+  const detected = await detectLanguageWithFastText(edgeCase.text)
   console.log(`Edge case (${edgeCase.name}): ${detected.code}`)
 }
 console.log(

@@ -24,10 +24,11 @@ Treat these boundaries as the default design:
   - `checks/`: one file per check; `characters.ts` holds character tables;
     `location.ts` computes lines, positions, and excerpts.
   - `analysis.ts`: the `AnalysisResult` contract shared with the API and web.
-  - `alphabets.ts`: per-language alphabets used by language detection.
+  - `language.ts`: language detection rules; the model is passed in as
+    `PredictLanguages`. `alphabets.ts` holds the per-language alphabets.
 - `apps/api/src/`: Fastify. `server.ts` validates input and routes requests;
-  `analyze.ts` runs fastText language detection and the analyzer;
-  `fixtures/` holds the language benchmark corpus.
+  `analyze.ts` loads fastText, feeds its predictions to the core's language
+  rules, and runs the analyzer; `fixtures/` holds the benchmark corpus.
 - `apps/web/src/`: React UI. `App.tsx` owns layout and state; `components/`
   holds the editor, results tabs, and cards; `lib/` holds pure helpers
   (labels and positions, selection, grouping); `styles.css` holds all styles.
@@ -36,7 +37,8 @@ Treat these boundaries as the default design:
 
 Analysis runs on the API using the shared analyzer; the web app sends the text
 and renders the result. Keep detection logic in `packages/shared`, not in React
-components or route handlers.
+components or route handlers. The layer table under "Code organization" in
+`CLAUDE.md` says where each new file goes, and ESLint enforces it.
 
 ## Adaptive workflow
 
@@ -56,7 +58,9 @@ Use the smallest suitable boundary:
 - **Pure deterministic rule or transformation** → a check in
   `packages/shared/src/checks/` and tests in
   `packages/shared/src/analyzer.test.ts`.
-- **Language detection** → `apps/api/src/analyze.ts`, corpus entries in
+- **Language detection** → rules in `packages/shared/src/language.ts` with
+  stand-in-model tests in `language.test.ts`, model loading in
+  `apps/api/src/analyze.ts`, corpus entries in
   `apps/api/src/fixtures/languageCorpus.ts`, and API tests; the benchmark must
   stay at 25/25.
 - **Input, display, state, or interaction change** → `apps/web/src/components/`
