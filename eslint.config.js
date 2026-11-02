@@ -6,7 +6,13 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['**/dist', 'node_modules'],
+    ignores: [
+      '**/dist',
+      'node_modules',
+      'coverage',
+      'playwright-report',
+      'test-results',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -122,6 +128,24 @@ export default tseslint.config(
               ],
               message:
                 'The frontend reaches the backend over HTTP (src/api.ts) and never imports server code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // End-to-end tests treat the app as a black box: browser and HTTP only.
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@charaicter/*', '**/apps/**', '**/packages/**'],
+              message:
+                'End-to-end tests drive the app through the browser; never import its code.',
             },
           ],
         },

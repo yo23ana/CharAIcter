@@ -12,15 +12,17 @@ positions and never modifies the user's text.
 On Windows PowerShell, use `npm.cmd` instead of `npm` (the execution policy
 blocks `npm.ps1`). Git Bash can use `npm`.
 
-| Command                      | Purpose                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000                                     |
-| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests                                                  |
-| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier; hidden-character scan; lockfile check |
-| `npm run build`              | Production build of all projects                                                                      |
-| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                                                       |
-| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                                                      |
-| `npm run format`             | Prettier rewrite; fixes `format:check` failures (files must use LF line endings)                      |
+| Command                      | Purpose                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                | Web app on http://localhost:5173 and API on http://localhost:3000                                        |
+| `npm test`                   | Builds `packages/shared`, then runs all Vitest tests                                                     |
+| `npm run check`              | Type-checks every project, tests and scripts; ESLint; Prettier; hidden-character scan; lockfile check    |
+| `npm run build`              | Production build of all projects                                                                         |
+| `npm run language:benchmark` | Language detection accuracy; must stay at 25/25                                                          |
+| `npm run test:coverage`      | Unit tests with coverage of the core, the API, and `apps/web/src/lib` (report in `coverage/`)            |
+| `npm run test:e2e`           | Builds, starts its own API (3100) and web app (4173), runs Playwright; screenshots in `e2e/screenshots/` |
+| `npm run test:agent`         | Testing-agent cycle (`scripts/testing-agent.ts`)                                                         |
+| `npm run format`             | Prettier rewrite; fixes `format:check` failures (files must use LF line endings)                         |
 
 Use Node 22 or newer (`.nvmrc` pins 24). Run one area's tests with `npx vitest run packages/shared` (or a file path).
 A change is done when `npm run check` and `npm test` pass; also run
@@ -32,12 +34,13 @@ Every file belongs to exactly one layer; put new files where this table says.
 ESLint (`eslint.config.js`) and each project's `tsconfig.json` reject imports
 and APIs that cross a boundary.
 
-| Layer    | Path                  | Holds                                                                                                                                                                                                                                         | May use                                                                                                     |
-| -------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Core     | `packages/shared/src` | Pure, deterministic detection: `analyzer.ts` with one check per file in `checks/`, `language.ts` (language rules; the model is passed in as `PredictLanguages`), data tables, and the types the API and web share (`types.ts`, `analysis.ts`) | Only its own modules. No packages, Node.js, DOM, I/O, `console`, `Math.random`, or `Date.now`               |
-| Backend  | `apps/api/src`        | HTTP routes and validation (`server.ts`), model loading and combining results (`analyze.ts`), benchmark data (`fixtures/`)                                                                                                                    | The core by package name, Node.js, and server packages; never frontend code                                 |
-| Frontend | `apps/web/src`        | Page state (`App.tsx`), React components (`components/`), pure UI helpers with no JSX or requests (`lib/`), and the API client (`api.ts`)                                                                                                     | Only types from the core; reaches the backend over HTTP through `api.ts`; `lib/` uses only types from React |
-| Tooling  | `scripts/`            | Repository checks and benchmarks, never imported by the apps                                                                                                                                                                                  | Anything                                                                                                    |
+| Layer      | Path                  | Holds                                                                                                                                                                                                                                         | May use                                                                                                     |
+| ---------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Core       | `packages/shared/src` | Pure, deterministic detection: `analyzer.ts` with one check per file in `checks/`, `language.ts` (language rules; the model is passed in as `PredictLanguages`), data tables, and the types the API and web share (`types.ts`, `analysis.ts`) | Only its own modules. No packages, Node.js, DOM, I/O, `console`, `Math.random`, or `Date.now`               |
+| Backend    | `apps/api/src`        | HTTP routes and validation (`server.ts`), model loading and combining results (`analyze.ts`), benchmark data (`fixtures/`)                                                                                                                    | The core by package name, Node.js, and server packages; never frontend code                                 |
+| Frontend   | `apps/web/src`        | Page state (`App.tsx`), React components (`components/`), pure UI helpers with no JSX or requests (`lib/`), and the API client (`api.ts`)                                                                                                     | Only types from the core; reaches the backend over HTTP through `api.ts`; `lib/` uses only types from React |
+| End-to-end | `e2e/`                | Playwright specs (`*.e2e.ts`) that drive the built app in a browser, and their helpers                                                                                                                                                        | The browser and Playwright only; never app code                                                             |
+| Tooling    | `scripts/`            | Repository checks and benchmarks, never imported by the apps                                                                                                                                                                                  | Anything                                                                                                    |
 
 - Place code by what it does, not by who calls it. A rule that decides what is
   a finding or which language a text is in belongs in the core, even if only
@@ -91,7 +94,12 @@ and APIs that cross a boundary.
   `.github/workflows/security.yml` runs npm audit, gitleaks, Semgrep, and
   zizmor.
 - Ask before launching servers or browsers. If the user's dev server is
-  already running, it reloads changes on its own.
+  already running, it reloads changes on its own. `npm run test:e2e` is the
+  exception: it starts its own servers on ports 3100 and 4173 and a headless
+  browser, and may run without asking.
+- For writing or repairing tests, use the `test-writer` agent
+  (`.claude/agents/test-writer.md`): Vitest unit tests, Playwright
+  end-to-end tests with screenshots, and a report of real bugs it finds.
 - Commit only when asked. Use the existing message style (`feat:`, `fix:`,
   `refactor:`, `chore:`).
 

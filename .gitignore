@@ -4,6 +4,12 @@ dist/
 coverage/
 *.local
 
+# Playwright: test results, the HTML report, and screenshots for review.
+playwright-report/
+test-results/
+blob-report/
+e2e/screenshots/
+
 # Secrets: environment files and private keys never belong in git.
 .env
 .env.*

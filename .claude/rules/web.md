@@ -24,5 +24,7 @@ paths:
 - Accessibility: visible focus on everything interactive, `aria-pressed` on
   toggles, arrow keys in the tab list, and respect `prefers-reduced-motion`.
 - Check layout changes at about 1440, 960, and 400 px wide and at 150% browser
-  zoom. Ask before launching a browser to do so.
+  zoom. Ask before launching a browser to do so; `npm run test:e2e` may run
+  without asking and saves screenshots at 1280, 960, and 400 px to
+  `e2e/screenshots/`.
 - For design work, follow the `frontend-design` skill.

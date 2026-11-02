@@ -10,7 +10,12 @@
       "Bash(npm run language:benchmark)",
       "Bash(npm run check:lockfile)",
       "Bash(npm audit)",
-      "Bash(npm audit signatures)"
+      "Bash(npm audit signatures)",
+      "Bash(npm run build)",
+      "Bash(npm run test:coverage)",
+      "Bash(npm run test:e2e)",
+      "Bash(npx vitest run*)",
+      "Bash(npx playwright test*)"
     ],
     "deny": [
       "Read(**/.env)",

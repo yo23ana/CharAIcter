@@ -46,11 +46,12 @@ The code is split into three layers with one-way dependencies. ESLint
 (`eslint.config.js`) and each project's TypeScript settings reject imports and
 APIs that cross a boundary.
 
-| Layer    | Path                  | Responsibility                                                                  | Boundary                                                                                                        |
-| -------- | --------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Core     | `packages/shared/src` | Pure, deterministic detection: findings, language rules, data, and shared types | Imports only its own modules; compiled without DOM or Node.js types; no `console`, `Math.random`, or `Date.now` |
-| Backend  | `apps/api/src`        | HTTP, validation, model loading, and combining results                          | Uses the core by package name; compiled without DOM types; never imports frontend code                          |
-| Frontend | `apps/web/src`        | Rendering and interaction                                                       | Imports only types from the core and reaches the backend over HTTP; `lib/` helpers import only types from React |
+| Layer      | Path                  | Responsibility                                                                  | Boundary                                                                                                        |
+| ---------- | --------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Core       | `packages/shared/src` | Pure, deterministic detection: findings, language rules, data, and shared types | Imports only its own modules; compiled without DOM or Node.js types; no `console`, `Math.random`, or `Date.now` |
+| Backend    | `apps/api/src`        | HTTP, validation, model loading, and combining results                          | Uses the core by package name; compiled without DOM types; never imports frontend code                          |
+| End-to-end | `e2e/`                | Playwright tests of the built app in a browser                                  | Browser and HTTP only; never imports app code                                                                   |
+| Frontend   | `apps/web/src`        | Rendering and interaction                                                       | Imports only types from the core and reaches the backend over HTTP; `lib/` helpers import only types from React |
 
 Anything that needs I/O is passed into the core as a function. The API gives
 `detectLanguage` a `PredictLanguages` function backed by fastText, so the
@@ -254,6 +255,21 @@ packages, or edits tests to hide failures.
 | `npm test`                   | Analyzer behavior and positions, and language rules with a stand-in model (`packages/shared/src`, run against the source), finding grouping and the API client (`apps/web/src`), and API routes, validation, CORS, and language detection (`apps/api/src`) |
 | `npm run check`              | Typecheck, ESLint, Prettier, `check:chars`, which rejects literal invisible and control characters in tracked text files, and `check:lockfile` (see Security)                                                                                              |
 | `npm run language:benchmark` | Accuracy on the corpus in `apps/api/src/fixtures/languageCorpus.ts` (currently 25/25), the `franc` baseline, edge cases, and confusions                                                                                                                    |
+| `npm run test:coverage`      | The unit tests with V8 coverage of the core, the API, and `apps/web/src/lib` (configured in `vitest.config.ts`, report in `coverage/`)                                                                                                                     |
+| `npm run test:e2e`           | Builds everything and runs the Playwright specs in `e2e/` in Chromium against the real API                                                                                                                                                                 |
+
+End-to-end tests (`playwright.config.ts`) start the built API on port 3100
+and `vite preview` on port 4173, with `API_PROXY_TARGET` pointing the
+preview's `/analyze` proxy at that API, so they never touch the development
+servers. The specs drive the UI by role and accessible name, stub the API
+only for error states, and save full-page screenshots of key scenarios
+(empty state, findings, selection, tabs, errors, 960 and 400 px widths) to
+the git-ignored `e2e/screenshots/` for visual review. Failure traces and
+screenshots go to `test-results/`, and the HTML report to
+`playwright-report/`. The `test-writer` Claude Code agent
+(`.claude/agents/test-writer.md`) writes and runs both kinds of tests,
+repairs wrong tests, and reports real bugs as expected failures
+(`it.fails`, `test.fail`) instead of changing application code.
 
 `npm run typecheck` runs `tsc --build` over the shared package, the API, and the
 web app, then `tsconfig.tests.json` over test files and scripts, which the
@@ -314,6 +330,6 @@ the zizmor version are updated by hand; Dependabot updates only the actions.
   which took about 10 s on alternating spaces and no-break spaces; it now
   reuses one forward search. Analyzer tests time such worst-case input, and
   Semgrep's generic regular-expression rule is turned off in favor of them.
-- **Not yet covered:** no browser (end-to-end) tests, no coverage reporting,
-  no rate limiting on the API, and line-ending differences (CRLF vs LF) are
+- **Not yet covered:** end-to-end tests run locally but not in CI, no
+  coverage threshold, no rate limiting on the API, and line-ending differences (CRLF vs LF) are
   not reported because browsers normalize textarea line endings.
