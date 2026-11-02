@@ -302,10 +302,9 @@ the job summary. Moderate development-only advisories do not fail it because
 some, such as a `minimatch` advisory reached through ESLint, have no compatible
 fix yet.
 
-The repository is private, so GitHub code scanning, secret push protection,
-and dependency review are unavailable without GitHub Advanced Security.
-Scanner findings fail the job instead of appearing in the Security tab, and a
-committed secret is caught after the push, not blocked before it. The gitleaks
+The repository is public. The security workflow does not rely on GitHub's
+own scanning features: scanner findings fail the job instead of appearing in
+the Security tab, and gitleaks catches a committed secret after the push. The gitleaks
 binary (checked against its SHA-256), the Semgrep image (pinned by digest), and
 the zizmor version are updated by hand; Dependabot updates only the actions.
 
