@@ -302,9 +302,12 @@ the job summary. Moderate development-only advisories do not fail it because
 some, such as a `minimatch` advisory reached through ESLint, have no compatible
 fix yet.
 
-The repository is public. The security workflow does not rely on GitHub's
-own scanning features: scanner findings fail the job instead of appearing in
-the Security tab, and gitleaks catches a committed secret after the push. The gitleaks
+The repository is public, and GitHub's own security features are turned on in
+its settings: secret scanning with push protection blocks a recognized secret
+before it reaches GitHub, and CodeQL default setup scans the TypeScript code and
+the workflows and reports findings in the Security tab. The security workflow
+does not depend on them: its scanner findings fail the job, and gitleaks still
+checks every commit. The gitleaks
 binary (checked against its SHA-256), the Semgrep image (pinned by digest), and
 the zizmor version are updated by hand; Dependabot updates only the actions.
 
