@@ -20,6 +20,8 @@ export type RepositoryReport = {
   languages: string[]
   frameworks: string[]
   testFiles: string[]
+  coverageProvider: boolean
+  browserTests: boolean
   exportedSymbols: string[]
   scripts: Record<string, string>
   architecture: string[]
@@ -37,7 +39,7 @@ export type TestCycleReport = {
   testCommand: string
   testPassed: boolean
   testOutput: string
-  coverage: 'not-configured'
+  coverage: 'configured' | 'not-configured'
   bugs: string[]
   remainingRisks: string[]
 }
@@ -115,7 +117,7 @@ export function inspectRepository(root: string): RepositoryReport {
   const files = sourceFiles(root)
   const extensions = new Set(files.map((file) => file.split('.').pop()))
   const testFiles = files
-    .filter((file) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file))
+    .filter((file) => /\.(?:test|spec|e2e)\.[cm]?[jt]sx?$/.test(file))
     .map((file) => relativePath(root, file))
   const exportedSymbols = files.flatMap((file) => {
     const content = readFileSync(file, 'utf8')
@@ -131,6 +133,7 @@ export function inspectRepository(root: string): RepositoryReport {
     dependencies.fastify && 'Fastify',
     dependencies.vitest && 'Vitest',
     dependencies.vite && 'Vite',
+    dependencies['@playwright/test'] && 'Playwright',
   ].filter((framework): framework is string => Boolean(framework))
 
   return {
@@ -141,6 +144,8 @@ export function inspectRepository(root: string): RepositoryReport {
     ].filter((language): language is string => Boolean(language)),
     frameworks,
     testFiles,
+    coverageProvider: Boolean(dependencies['@vitest/coverage-v8']),
+    browserTests: Boolean(dependencies['@playwright/test']),
     exportedSymbols,
     scripts: packageData.scripts ?? {},
     architecture: [
@@ -174,16 +179,16 @@ export function generateTests(root: string): TestGenerationResult {
 export function runTestCycle(root: string): TestCycleReport {
   const repository = inspectRepository(root)
   const generated = generateTests(root)
-  const testCommand = 'npm.cmd test -- --reporter=verbose'
+  const isWindows = process.platform === 'win32'
+  const testCommand = `${isWindows ? 'npm.cmd' : 'npm'} test -- --reporter=verbose`
   let testPassed = false
   let testOutput: string
 
   try {
-    const isWindows = process.platform === 'win32'
     testOutput = execFileSync(
       isWindows ? (process.env.ComSpec ?? 'cmd.exe') : 'npm',
       isWindows
-        ? ['/d', '/s', '/c', 'npm.cmd test -- --reporter=verbose']
+        ? ['/d', '/s', '/c', testCommand]
         : ['test', '--', '--reporter=verbose'],
       {
         cwd: root,
@@ -209,7 +214,7 @@ export function runTestCycle(root: string): TestCycleReport {
     testCommand,
     testPassed,
     testOutput,
-    coverage: 'not-configured',
+    coverage: repository.coverageProvider ? 'configured' : 'not-configured',
     bugs: testPassed
       ? []
       : [
@@ -217,8 +222,12 @@ export function runTestCycle(root: string): TestCycleReport {
         ],
     remainingRisks: [
       'The agent performs static discovery and deterministic test generation; it does not infer business requirements from an external AI model.',
-      'React interaction and API endpoint tests are not generated until a browser/API test environment is added.',
-      'Coverage is not configured because the repository has no Vitest coverage provider dependency.',
+      repository.browserTests
+        ? 'This cycle runs only the unit tests; run npm run test:e2e for the browser tests.'
+        : 'React interaction tests are not generated until a browser test environment is added.',
+      repository.coverageProvider
+        ? 'This cycle does not measure coverage; run npm run test:coverage for the report.'
+        : 'Coverage is not configured because the repository has no Vitest coverage provider dependency.',
     ],
   }
 }

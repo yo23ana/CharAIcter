@@ -125,8 +125,9 @@ relevant checks, then the baseline checks when the feature crosses layers:
   `npm.cmd run build`;
 - API change: `npm.cmd run check`, `npm.cmd run build`, focused endpoint
   tests, and an explicit request/error-path check;
-- cross-layer or release change: all of the above, plus a browser smoke test
-  when browser tooling is available and approved.
+- cross-layer or release change: all of the above, plus `npm.cmd run test:e2e`
+  (it starts its own servers and a headless browser, so it may run without
+  asking).
 
 For every feature, verify the actual requirement rather than only compilation:
 

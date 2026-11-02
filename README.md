@@ -2,7 +2,7 @@
 
 CharAIcter is a web application for inspecting text for subtle character-level anomalies, including unusual Unicode characters, invisible characters, and visually similar scripts.
 
-## Foundation phase
+## Features
 
 The current version includes:
 
