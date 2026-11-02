@@ -17,6 +17,10 @@ paths:
   - `line`, `linePosition`, `lineEndPosition`: 1-based and counted in code
     points, shown to users as "Line 3, position 5".
 - Report a run of related characters as one finding, not one per character.
+- Keep every check linear in the text length: the API accepts 100,000
+  characters from anyone and runs on a single thread. Never search the rest of
+  the text again for each match; time worst-case input in a test, like the
+  mixed-whitespace test in `analyzer.test.ts`.
 - In `checks/specialCharacters.ts` the first matching branch wins, so put a
   new branch before any branch that would also match its characters.
 - Descriptions explain why a character deserves review; call it unusual, not

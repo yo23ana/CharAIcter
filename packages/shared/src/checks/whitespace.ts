@@ -6,7 +6,12 @@ export function findOrdinaryWhitespace(
   locate: Locate,
 ): Finding[] {
   const findings: Finding[] = []
-  const punctuationAhead = /\s*([,.;:!?])/uy
+  const visible = /\S/gu
+  // Offset of the first non-whitespace character at or after the end of an
+  // earlier run. Runs come in text order, so one search serves every run
+  // before that offset; searching again for each run took quadratic time on
+  // long stretches of mixed whitespace.
+  let nextVisible = -1
 
   for (const match of text.matchAll(/[ \t]+/g)) {
     const value = match[0]
@@ -16,13 +21,15 @@ export function findOrdinaryWhitespace(
     const after = end === text.length ? '\n' : text[end]
     const isLineStart = before === '\n' || before === '\r'
     const isLineEnd = after === '\n' || after === '\r'
-    punctuationAhead.lastIndex = end
-    const nextNonWhitespace = punctuationAhead.exec(text)?.[1]
+    if (nextVisible < end) {
+      visible.lastIndex = end
+      nextVisible = visible.exec(text)?.index ?? text.length
+    }
     const whitespaceType: WhitespaceType = isLineStart
       ? 'leading'
       : isLineEnd
         ? 'trailing'
-        : nextNonWhitespace !== undefined
+        : /[,.;:!?]/.test(text.charAt(nextVisible))
           ? 'before-punctuation'
           : 'repeated-internal'
 

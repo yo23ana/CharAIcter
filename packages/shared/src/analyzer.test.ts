@@ -104,6 +104,34 @@ describe('analyzeText', () => {
     ])
   })
 
+  it('looks past other whitespace to find punctuation after a space', () => {
+    const findings = analyzeText('a \u00A0 . b  c')
+
+    expect(findings).toMatchObject([
+      { startOffset: 1, endOffset: 2, whitespaceType: 'before-punctuation' },
+      { startOffset: 2, endOffset: 3, codePoint: 'U+00A0' },
+      { startOffset: 3, endOffset: 4, whitespaceType: 'before-punctuation' },
+      {
+        startOffset: 7,
+        endOffset: 9,
+        linePosition: 8,
+        whitespaceType: 'repeated-internal',
+      },
+    ])
+  })
+
+  it('analyzes long runs of mixed whitespace in linear time', () => {
+    // Each space run used to search all the whitespace after it again, so
+    // these 100,000-character texts took 6 to 12 seconds.
+    for (const unit of [' \u00A0', ' \n', ' \r\n']) {
+      const text = unit.repeat(Math.floor(100_000 / unit.length))
+      const started = performance.now()
+      analyzeText(text)
+
+      expect(performance.now() - started).toBeLessThan(2000)
+    }
+  })
+
   it('preserves UTF-16 offsets and character positions after emoji', () => {
     const findings = analyzeText('🙂 hello  world')
     const finding = findings.find(
