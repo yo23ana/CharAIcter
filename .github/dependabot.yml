@@ -16,6 +16,9 @@ updates:
       # it supports newer versions.
       - dependency-name: typescript
         versions: ['>=6.1']
+      # Keep the Node.js types on the Node.js major version in .nvmrc.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
