@@ -11,6 +11,11 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1 only. Remove this when
+      # it supports newer versions.
+      - dependency-name: typescript
+        versions: ['>=6.1']
 
   - package-ecosystem: github-actions
     directory: /
