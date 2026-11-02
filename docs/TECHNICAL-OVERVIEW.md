@@ -279,7 +279,9 @@ phrases.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, check, tests, and
 build on every push to `main`/`master` and on pull requests, using the Node
-version in `.nvmrc`. `.gitattributes` keeps LF line endings on every platform,
+version in `.nvmrc`. A second job installs Chromium, runs `npm run test:e2e`,
+and keeps the screenshots, report, and failure traces as a downloadable
+`e2e-results` artifact for 14 days. `.gitattributes` keeps LF line endings on every platform,
 which the Prettier check expects.
 
 ## Security and supply chain
@@ -330,6 +332,5 @@ the zizmor version are updated by hand; Dependabot updates only the actions.
   which took about 10 s on alternating spaces and no-break spaces; it now
   reuses one forward search. Analyzer tests time such worst-case input, and
   Semgrep's generic regular-expression rule is turned off in favor of them.
-- **Not yet covered:** end-to-end tests run locally but not in CI, no
-  coverage threshold, no rate limiting on the API, and line-ending differences (CRLF vs LF) are
+- **Not yet covered:** no coverage threshold, no rate limiting on the API, and line-ending differences (CRLF vs LF) are
   not reported because browsers normalize textarea line endings.

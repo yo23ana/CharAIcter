@@ -66,7 +66,8 @@ The other scripts are steps that these commands run for you: `build:shared`,
 
 The repository is an npm workspace: `packages/shared` is linked as
 `@charaicter/shared`, so the web app and the API import it by package name.
-GitHub Actions runs check, tests, and build on every push and pull request. A
+GitHub Actions runs check, tests, build, and the end-to-end tests on every
+push and pull request. A
 security workflow (dependency audit, secret scan, and code scan) runs on every
 push and pull request, and weekly.
 
